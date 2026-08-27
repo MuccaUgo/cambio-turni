@@ -46,6 +46,10 @@ create table public.members (
   id         uuid primary key default gen_random_uuid(),
   full_name  text not null,
   pin_hash   text not null,                  -- bcrypt del codice a 6 cifre
+  -- mansione: Pro / Expert / Specialist. È solo un'etichetta descrittiva,
+  -- serve a capire chi può coprire chi. NON dà permessi.
+  job        text,
+  -- questo invece è il permesso: 'admin' tiene in ordine l'elenco, nient'altro
   role       text not null default 'member' check (role in ('member','admin')),
   active     boolean not null default true,
   created_at timestamptz not null default now(),
@@ -141,7 +145,8 @@ $$;
 create or replace function public.member_json(m public.members)
 returns json language sql immutable as $$
   select json_build_object(
-    'id', m.id, 'full_name', m.full_name, 'role', m.role, 'active', m.active)
+    'id', m.id, 'full_name', m.full_name, 'job', m.job,
+    'role', m.role, 'active', m.active)
 $$;
 
 -- Crea una sessione e restituisce il token in chiaro (l'unica volta)
@@ -191,7 +196,8 @@ create or replace function public.swaps_json(
 returns json language sql stable security definer set search_path = pg_catalog, public, extensions as $$
   select coalesce(json_agg(x order by x.target_date, x.created_at), '[]'::json)
   from (
-    select s.id, s.author_id, a.full_name as author_name, s.target_date, s.kind,
+    select s.id, s.author_id, a.full_name as author_name, a.job as author_job,
+           s.target_date, s.kind,
            to_char(s.from_time,  'HH24:MI') as from_time,
            to_char(s.to_time,    'HH24:MI') as to_time,
            case when p_me in (s.author_id, s.taker_id)
@@ -200,6 +206,7 @@ returns json language sql stable security definer set search_path = pg_catalog, 
            s.offers, s.status,
            case when p_me in (s.author_id, s.taker_id) then s.taker_id end as taker_id,
            case when p_me in (s.author_id, s.taker_id) then t.full_name end as taker_name,
+           case when p_me in (s.author_id, s.taker_id) then t.job end as taker_job,
            s.created_at,
            exists (select 1 from public.swap_declines d
                     where d.swap_id = s.id and d.member_id = p_me) as declined_by_me,
@@ -234,22 +241,27 @@ end $$;
 create or replace function public.api_people()
 returns json language sql stable security definer set search_path = pg_catalog, public, extensions as $$
   select coalesce((
-    select json_agg(json_build_object('id', m.id, 'full_name', m.full_name)
+    select json_agg(json_build_object('id', m.id, 'full_name', m.full_name, 'job', m.job)
                     order by m.full_name)
     from public.members m where m.active
   ), '[]'::json)
 $$;
 
--- Registrazione: nome e cognome + codice di 6 cifre scelto dalla persona
-create or replace function public.api_register(p_full_name text, p_pin text)
+-- Registrazione: nome e cognome + mansione + codice di 6 cifre
+create or replace function public.api_register(
+  p_full_name text, p_pin text, p_job text default null)
 returns json language plpgsql security definer set search_path = pg_catalog, public, extensions as $$
 declare v_member public.members; v_token text; v_first boolean;
 begin
   p_full_name := btrim(regexp_replace(coalesce(p_full_name, ''), '\s+', ' ', 'g'));
   p_pin       := btrim(coalesce(p_pin, ''));
+  -- la lista delle mansioni la decide l'app: qui si controlla solo che sia
+  -- un'etichetta corta e sensata, così aggiungerne una non richiede migrazioni
+  p_job       := nullif(btrim(coalesce(p_job, '')), '');
 
   if length(p_full_name) < 3 or p_full_name !~ '\s' then raise exception 'NAME_INVALID'; end if;
   if p_pin !~ '^[0-9]{6}$' then raise exception 'PIN_INVALID'; end if;
+  if p_job is not null and length(p_job) > 24 then raise exception 'JOB_INVALID'; end if;
 
   if exists (select 1 from public.members
               where lower(btrim(full_name)) = lower(p_full_name)) then
@@ -259,8 +271,8 @@ begin
   -- la prima persona che entra tiene le chiavi di casa (solo manutenzione)
   select not exists (select 1 from public.members) into v_first;
 
-  insert into public.members (full_name, pin_hash, role, last_login)
-  values (p_full_name, crypt(p_pin, gen_salt('bf', 8)),
+  insert into public.members (full_name, pin_hash, job, role, last_login)
+  values (p_full_name, crypt(p_pin, gen_salt('bf', 8)), p_job,
           case when v_first then 'admin' else 'member' end, now())
   returning * into v_member;
 
@@ -324,6 +336,18 @@ begin
   delete from public.sessions                 -- fuori dagli altri dispositivi
    where member_id = v_member.id
      and token_hash <> encode(digest(p_token, 'sha256'), 'hex');
+  return json_build_object('ok', true);
+end $$;
+
+-- Cambiare la propria mansione (capita di passare da Pro a Expert)
+create or replace function public.api_set_job(p_token text, p_job text)
+returns json language plpgsql security definer set search_path = pg_catalog, public, extensions as $$
+declare v_member public.members;
+begin
+  v_member := public.auth_member(p_token);
+  p_job := nullif(btrim(coalesce(p_job, '')), '');
+  if p_job is not null and length(p_job) > 24 then raise exception 'JOB_INVALID'; end if;
+  update public.members set job = p_job where id = v_member.id;
   return json_build_object('ok', true);
 end $$;
 
@@ -513,7 +537,7 @@ begin
   v_admin := public.auth_admin(p_token);
   return coalesce((
     select json_agg(json_build_object(
-      'id', m.id, 'full_name', m.full_name, 'role', m.role,
+      'id', m.id, 'full_name', m.full_name, 'job', m.job, 'role', m.role,
       'active', m.active, 'last_login', m.last_login) order by m.full_name)
     from public.members m
   ), '[]'::json);
@@ -568,11 +592,12 @@ revoke all on function public.swap_for_update(uuid,uuid,boolean)   from public;
 
 grant execute on function
   public.api_people(),
-  public.api_register(text,text),
+  public.api_register(text,text,text),
   public.api_login(uuid,text),
   public.api_session(text),
   public.api_logout(text),
   public.api_change_pin(text,text,text),
+  public.api_set_job(text,text),
   public.api_month(text,date,date),
   public.api_board(text),
   public.api_create(text,date,text,text,text,jsonb),

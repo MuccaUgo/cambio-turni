@@ -158,6 +158,12 @@
   .person { display: flex; align-items: center; gap: 11px; width: 100%; padding: 13px 14px; font-size: 1rem; text-align: left; border-bottom: 1px solid var(--hair); }
   .person:last-child { border-bottom: none; }
   .person:active { background: var(--accent-bg); }
+  .ruolo {
+    font-size: .64rem; font-weight: 800; text-transform: uppercase; letter-spacing: .04em;
+    padding: 3px 8px; border-radius: 999px; background: var(--glass3);
+    border: 1px solid var(--edge); color: var(--ink2); margin-left: 7px; white-space: nowrap;
+  }
+  .person .ruolo { margin-left: auto; }
   .avatar { width: 34px; height: 34px; border-radius: 50%; flex: none; background: var(--accent-bg); color: var(--accent); display: grid; place-items: center; font-weight: 800; font-size: .78rem; }
   .empty-note { padding: 22px 16px; text-align: center; color: var(--ink2); font-size: .9rem; line-height: 1.5; }
 
@@ -352,6 +358,8 @@
     <div class="stack" style="margin-top:18px">
       <div class="field"><label for="in-name">Nome e cognome</label>
         <input id="in-name" type="text" autocapitalize="words" autocomplete="name" placeholder="Mario Rossi"></div>
+      <div class="field"><label>Il tuo ruolo</label>
+        <div class="chips" id="scelta-ruolo"></div></div>
       <div class="err-msg" id="name-err"></div>
       <button class="b pri full" id="name-next">Continua</button>
       <button class="link" id="back-pick">← Torna all'elenco</button>
@@ -489,7 +497,8 @@ const demo = {
     if (raw) return JSON.parse(raw);
     const nomi = ["Giulia Ferrari","Marco Bianchi","Sara Conti","Luca Greco","Elena Rossi","Paolo Marino",
                   "Chiara Gallo","Davide Costa","Anna Ricci","Matteo Fontana","Sofia Barbieri","Andrea Villa"];
-    const membri = nomi.map((n, i) => ({ id: "d" + i, full_name: n, role: i === 0 ? "admin" : "member", active: true, pin: "000000" }));
+    const membri = nomi.map((n, i) => ({ id: "d" + i, full_name: n, job: RUOLI[i % RUOLI.length],
+                                         role: i === 0 ? "admin" : "member", active: true, pin: "000000" }));
     const t = today();
     const orari = ["08:00","08:30","09:00","09:30","10:00","13:00","14:00","15:00"];
     const pick = a => a[Math.floor(Math.random() * a.length)];
@@ -528,11 +537,15 @@ const demo = {
   save(s) { localStorage.setItem("cambioturni_demo", JSON.stringify(s)); },
   me(s, token) { const m = s.membri.find(x => x.id === s.sess[token]); if (!m || !m.active) throw new Error("NOT_AUTHENTICATED"); return m; },
   admin(s, token) { const m = demo.me(s, token); if (m.role !== "admin") throw new Error("NOT_ADMIN"); return m; },
-  pub(m) { return { id: m.id, full_name: m.full_name, role: m.role, active: m.active }; },
+  pub(m) { return { id: m.id, full_name: m.full_name, job: m.job || null, role: m.role, active: m.active }; },
   vista(s, sw, meId) {
     // privacy: chi ha accettato lo vedono solo i due interessati
     const parte = sw.author_id === meId || sw.taker_id === meId;
+    const autore = s.membri.find(x => x.id === sw.author_id);
+    const chiPrende = sw.taker_id ? s.membri.find(x => x.id === sw.taker_id) : null;
     return { ...sw,
+             author_job: (autore && autore.job) || null,
+             taker_job: parte && chiPrende ? chiPrende.job || null : null,
              taker_id:   parte ? sw.taker_id   || null : null,
              taker_name: parte ? sw.taker_name || null : null,
              taker_time: parte ? sw.taker_time || null : null,
@@ -547,14 +560,16 @@ const demo = {
     const s = demo.load();
     const done = v => { demo.save(s); return v; };
     switch (fn) {
-      case "api_people": return s.membri.filter(m => m.active).map(m => ({ id: m.id, full_name: m.full_name }))
+      case "api_people": return s.membri.filter(m => m.active)
+        .map(m => ({ id: m.id, full_name: m.full_name, job: m.job || null }))
         .sort((x, y) => x.full_name.localeCompare(y.full_name));
       case "api_register": {
         const nome = (a.p_full_name || "").trim().replace(/\s+/g, " ");
         if (nome.length < 3 || !nome.includes(" ")) throw new Error("NAME_INVALID");
         if (!/^\d{6}$/.test(a.p_pin || "")) throw new Error("PIN_INVALID");
         if (s.membri.some(m => m.full_name.toLowerCase() === nome.toLowerCase())) throw new Error("NAME_TAKEN");
-        const m = { id: "d" + Date.now(), full_name: nome, role: s.membri.length ? "member" : "admin", active: true, pin: a.p_pin };
+        const m = { id: "d" + Date.now(), full_name: nome, job: (a.p_job || "").trim() || null,
+                    role: s.membri.length ? "member" : "admin", active: true, pin: a.p_pin };
         s.membri.push(m);
         const tk = "t" + Math.random().toString(36).slice(2); s.sess[tk] = m.id;
         return done({ token: tk, member: demo.pub(m) });
@@ -568,6 +583,11 @@ const demo = {
         return done({ token: tk, member: demo.pub(m) });
       }
       case "api_session": return { member: demo.pub(demo.me(s, a.p_token)) };
+      case "api_set_job": {
+        const m = demo.me(s, a.p_token);
+        m.job = (a.p_job || "").trim() || null;
+        return done({ ok: true });
+      }
       case "api_logout": delete s.sess[a.p_token]; return done({ ok: true });
       case "api_change_pin": {
         const m = demo.me(s, a.p_token);
@@ -705,6 +725,10 @@ const SVG = {
 };
 const ICONA = k => `<span class="i">${SVG[k] || SVG.orario}</span>`;
 
+// I ruoli sono solo etichette descrittive: servono a capire chi può coprire chi,
+// non danno permessi. Per aggiungerne uno basta scriverlo qui.
+const RUOLI = ["Pro", "Expert", "Specialist"];
+
 // Le otto combinazioni: tipo di richiesta × di chi è × a che punto sta
 function etichetta(sw) {
   if (sw.status === "risolta") return "Risolto";
@@ -724,7 +748,16 @@ const classeColore = sw => sw.status === "risolta" ? "c-risolta" : (sw.status ==
 /* ============================================================
    ACCESSO
    ============================================================ */
-let persone = [], scelto = null, modoPin = "login", nomeNuovo = "", pin = "", pinPrimo = "";
+let persone = [], scelto = null, modoPin = "login", nomeNuovo = "", ruoloNuovo = "", pin = "", pinPrimo = "";
+
+function disegnaSceltaRuolo() {
+  $("#scelta-ruolo").innerHTML = RUOLI.map(r =>
+    `<button class="chip ${ruoloNuovo === r ? "on" : ""}" data-ruolo="${esc(r)}">${esc(r)}</button>`).join("");
+}
+$("#scelta-ruolo").addEventListener("click", e => {
+  const b = e.target.closest("[data-ruolo]"); if (!b) return;
+  ruoloNuovo = b.dataset.ruolo; $("#name-err").textContent = ""; disegnaSceltaRuolo();
+});
 
 async function caricaPersone() {
   try { persone = await api("api_people"); } catch { persone = []; }
@@ -736,7 +769,9 @@ function disegnaPersone() {
   const list = persone.filter(p => p.full_name.toLowerCase().includes(q));
   $("#people-list").innerHTML = list.length
     ? list.map(p => `<button class="person" data-id="${esc(p.id)}">
-         <span class="avatar">${esc(iniziali(p.full_name))}</span>${esc(p.full_name)}</button>`).join("")
+         <span class="avatar">${esc(iniziali(p.full_name))}</span>
+         <span>${esc(p.full_name)}</span>
+         ${p.job ? `<span class="ruolo">${esc(p.job)}</span>` : ""}</button>`).join("")
     : `<div class="empty-note">${persone.length ? "Nessun nome trovato." : "Nessuno si è ancora registrato.<br>Sei il primo."}</div>`;
 }
 function mostraStep(step) {
@@ -790,7 +825,7 @@ async function inviaPin() {
       return;
     }
     try {
-      const r = await api("api_register", { p_full_name: nomeNuovo, p_pin: code });
+      const r = await api("api_register", { p_full_name: nomeNuovo, p_pin: code, p_job: ruoloNuovo });
       entra(r); toast("Benvenuto/a " + nome1(r.member.full_name) + "!");
     } catch (e) { erroreDot(messaggio(e)); }
   }
@@ -807,13 +842,14 @@ $("#people-list").addEventListener("click", e => {
   scelto = persone.find(p => String(p.id) === b.dataset.id);
   apriPin("login", "Ciao " + nome1(scelto.full_name), "Inserisci il tuo codice di 6 cifre");
 });
-$("#go-register").onclick = () => { $("#name-err").textContent = ""; mostraStep("name"); };
+$("#go-register").onclick = () => { $("#name-err").textContent = ""; disegnaSceltaRuolo(); mostraStep("name"); };
 $("#back-pick").onclick = () => mostraStep("pick");
 $("#pin-back").onclick = () => mostraStep(modoPin === "login" ? "pick" : "name");
 $("#name-next").onclick = () => {
   const n = $("#in-name").value.trim().replace(/\s+/g, " ");
   if (n.length < 3 || !n.includes(" ")) { $("#name-err").textContent = ERRORI.NAME_INVALID; return; }
   if (persone.some(p => p.full_name.toLowerCase() === n.toLowerCase())) { $("#name-err").textContent = ERRORI.NAME_TAKEN; return; }
+  if (!ruoloNuovo) { $("#name-err").textContent = "Scegli il tuo ruolo."; return; }
   nomeNuovo = n; apriPin("new1", "Crea il tuo codice", "6 cifre, servirà per entrare");
 };
 $("#in-name").addEventListener("keydown", e => { if (e.key === "Enter") $("#name-next").click(); });
@@ -979,7 +1015,11 @@ function schedaSwap(sw, conData = true) {
     <div class="top">
       <div>
         <div class="who">${mio ? "La tua richiesta" : esc(sw.author_name)}</div>
-        ${conData ? `<div class="when">${esc(dataLunga(sw.target_date))}</div>` : ""}
+        ${(() => {
+          const meta = [!mio && sw.author_job ? sw.author_job : null,
+                        conData ? dataLunga(sw.target_date) : null].filter(Boolean).join(" · ");
+          return meta ? `<div class="when">${esc(meta)}</div>` : "";
+        })()}
       </div>
       <span class="pill ${classeStato(sw)}">${etichetta(sw)}</span>
     </div>
@@ -1123,6 +1163,9 @@ async function disegnaProfilo() {
     <div class="card g">
       <h3>${esc(S.me.full_name)}</h3>
       <div class="sub">${DEMO ? "Modalità demo · " : ""}Il tuo codice serve solo a farti riconoscere dai colleghi.</div>
+      <div class="sub" style="margin:11px 0 6px">Il tuo ruolo</div>
+      <div class="chips" id="mio-ruolo">${RUOLI.map(r =>
+        `<button class="chip ${S.me.job === r ? "on" : ""}" data-act="job" data-r="${esc(r)}">${esc(r)}</button>`).join("")}</div>
     </div>
     <div class="card g">
       <h3>Cambia il tuo codice</h3>
@@ -1152,7 +1195,8 @@ async function disegnaProfilo() {
     <div class="sub" style="margin-bottom:6px">Non serve ad approvare niente: solo per rimettere a posto un codice
     dimenticato o togliere chi non lavora più con voi.</div>
     ${membri.map(m => `<div class="swap" style="margin-top:8px">
-      <div class="top"><div><div class="who">${esc(m.full_name)}</div>
+      <div class="top"><div><div class="who">${esc(m.full_name)}${
+        m.job ? `<span class="ruolo">${esc(m.job)}</span>` : ""}</div>
         <div class="when">${m.active ? "attivo" : "disattivato"}${m.role === "admin" ? " · gestisce l'elenco" : ""}</div></div></div>
       ${m.id === S.me.id ? `<div class="sub" style="margin-top:6px">Sei tu</div>` : `<div class="acts">
         <button class="b sm" data-act="m-pin" data-id="${esc(m.id)}">Reimposta codice</button>
@@ -1200,6 +1244,14 @@ document.addEventListener("click", async e => {
     case "cancel":  return chiama("api_cancel",  { p_id: id }, "Richiesta annullata");
     case "edit":    vaiA("cal"); return apriGiorno(b.dataset.d);
     case "kind":    S.nuovoKind = b.dataset.k; return disegna();
+    case "job": {
+      const prima = S.me.job;
+      S.me.job = b.dataset.r;                      // aggiorno subito, poi salvo
+      disegna();
+      try { await api("api_set_job", { p_token: S.token, p_job: b.dataset.r }); toast("Ruolo aggiornato"); }
+      catch (err) { S.me.job = prima; disegna(); toast(messaggio(err), true); }
+      return;
+    }
     case "offer": {
       const d = b.dataset.d;
       if (S.nuoveOfferte[d] !== undefined) delete S.nuoveOfferte[d];
