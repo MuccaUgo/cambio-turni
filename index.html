@@ -1015,11 +1015,7 @@ function schedaSwap(sw, conData = true) {
     <div class="top">
       <div>
         <div class="who">${mio ? "La tua richiesta" : esc(sw.author_name)}</div>
-        ${(() => {
-          const meta = [!mio && sw.author_job ? sw.author_job : null,
-                        conData ? dataLunga(sw.target_date) : null].filter(Boolean).join(" · ");
-          return meta ? `<div class="when">${esc(meta)}</div>` : "";
-        })()}
+        ${conData ? `<div class="when">${esc(dataLunga(sw.target_date))}</div>` : ""}
       </div>
       <span class="pill ${classeStato(sw)}">${etichetta(sw)}</span>
     </div>
