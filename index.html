@@ -1,0 +1,1295 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Cambio turni">
+<meta name="theme-color" content="#0e8b7d">
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<title>Cambio turni</title>
+<style>
+  :root {
+    --ink: #0f2022;
+    --ink2: #5c7376;
+    --glass: rgba(255,255,255,.55);
+    --glass2: rgba(255,255,255,.42);
+    --glass3: rgba(255,255,255,.28);
+    --edge: rgba(255,255,255,.78);
+    --sheen: rgba(255,255,255,.7);
+    --hair: rgba(15,32,34,.10);
+    --shadow: 0 14px 38px rgba(10,30,35,.14);
+    --accent: #0e8b7d;
+    --accent-2: #0a6b60;
+    --accent-bg: rgba(14,139,125,.14);
+    --amber: #a96605;
+    --amber-bg: rgba(230,145,20,.18);
+    --green: #10794f;
+    --green-bg: rgba(30,170,110,.18);
+    --red: #bc3145;
+    --red-bg: rgba(200,60,80,.14);
+    --r: 22px;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --ink: #e9f2f1;
+      --ink2: #94a9aa;
+      --glass: rgba(24,34,36,.58);
+      --glass2: rgba(255,255,255,.07);
+      --glass3: rgba(255,255,255,.04);
+      --edge: rgba(255,255,255,.14);
+      --sheen: rgba(255,255,255,.10);
+      --hair: rgba(255,255,255,.10);
+      --shadow: 0 14px 38px rgba(0,0,0,.42);
+      --accent: #46d3bd;
+      --accent-2: #27a691;
+      --accent-bg: rgba(70,211,189,.16);
+      --amber: #f0b455;
+      --amber-bg: rgba(240,180,85,.16);
+      --green: #4fd699;
+      --green-bg: rgba(79,214,153,.16);
+      --red: #ff8a95;
+      --red-bg: rgba(255,138,149,.15);
+    }
+  }
+  * { box-sizing: border-box; margin: 0; -webkit-tap-highlight-color: transparent; }
+  html { -webkit-text-size-adjust: 100%; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    color: var(--ink); min-height: 100dvh; overscroll-behavior-y: none;
+    background: #eef3f4;
+  }
+  @media (prefers-color-scheme: dark) { body { background: #08100f; } }
+
+  /* il fondo colorato che il vetro rifrange */
+  body::before {
+    content: ''; position: fixed; inset: -25%; z-index: -1; pointer-events: none;
+    background:
+      radial-gradient(50% 42% at 12%  8%, #6fdcca 0%, transparent 65%),
+      radial-gradient(46% 40% at 92%  4%, #90b0ff 0%, transparent 65%),
+      radial-gradient(54% 46% at 86% 72%, #ffc78c 0%, transparent 65%),
+      radial-gradient(50% 44% at 4%  90%, #bda8ff 0%, transparent 65%),
+      radial-gradient(44% 34% at 50% 46%, #b6ecff 0%, transparent 70%);
+    filter: blur(26px); opacity: 1;
+  }
+  @media (prefers-color-scheme: dark) {
+    body::before {
+      background:
+        radial-gradient(38% 32% at 15% 10%, #0d5f57 0%, transparent 62%),
+        radial-gradient(34% 30% at 88% 6%,  #24386e 0%, transparent 62%),
+        radial-gradient(42% 36% at 82% 78%, #6a4416 0%, transparent 62%),
+        radial-gradient(38% 34% at 8%  86%, #3a2a6b 0%, transparent 62%);
+      opacity: .75;
+    }
+  }
+
+  button { font-family: inherit; color: inherit; cursor: pointer; border: none; background: none; }
+  input, textarea {
+    font-family: inherit; font-size: 16px; color: var(--ink);
+    background: var(--glass3); border: 1px solid var(--edge);
+    border-radius: 14px; padding: 12px; width: 100%;
+    -webkit-appearance: none; appearance: none;
+  }
+  input:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
+  .hide { display: none !important; }
+
+  /* ---------- materiale vetro ---------- */
+  .g {
+    background: var(--glass);
+    -webkit-backdrop-filter: blur(26px) saturate(190%);
+    backdrop-filter: blur(26px) saturate(190%);
+    border: 1px solid var(--edge);
+    box-shadow: inset 0 1px 0 var(--sheen), var(--shadow);
+  }
+
+  .b {
+    display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+    border-radius: 999px; padding: 12px 18px; font-size: .93rem; font-weight: 650;
+    background: var(--glass2); border: 1px solid var(--edge);
+    box-shadow: inset 0 1px 0 var(--sheen);
+    color: var(--ink); text-decoration: none;   /* .b sta anche sugli <a> */
+  }
+  .b:active { transform: scale(.97); }
+  .b:disabled { opacity: .45; }
+  .b.full { width: 100%; }
+  .b.pri {
+    background: linear-gradient(180deg, var(--accent), var(--accent-2));
+    color: #fff; border-color: transparent;
+    box-shadow: inset 0 1px 0 rgba(255,255,255,.32), 0 8px 20px rgba(14,139,125,.32);
+  }
+  .b.sm { padding: 9px 14px; font-size: .84rem; }
+  .b.warn { color: var(--amber); background: var(--amber-bg); }
+  .b.ok   { color: var(--green); background: var(--green-bg); }
+  .b.bad  { color: var(--red);   background: var(--red-bg); }
+  .link { color: var(--accent); font-weight: 650; font-size: .92rem; padding: 12px; display: block; width: 100%; text-align: center; }
+
+  .pill { font-size: .7rem; font-weight: 800; padding: 4px 10px; border-radius: 999px; white-space: nowrap; }
+  .s-aperta  { background: var(--amber-bg); color: var(--amber); }
+  .s-presa   { background: var(--accent-bg); color: var(--accent); }
+  .s-risolta { background: var(--green-bg); color: var(--green); }
+
+  /* ---------- accesso ---------- */
+  #auth {
+    min-height: 100dvh; display: flex; flex-direction: column;
+    padding: calc(26px + env(safe-area-inset-top)) 18px calc(18px + env(safe-area-inset-bottom));
+    max-width: 460px; margin: 0 auto;
+  }
+  .brand { text-align: center; margin-bottom: 20px; }
+  .brand .logo {
+    width: 66px; height: 66px; border-radius: 20px; margin: 0 auto 10px;
+    background: linear-gradient(150deg, #43c9b6, #0b7568);
+    display: grid; place-items: center; font-size: 30px;
+    box-shadow: inset 0 1px 0 rgba(255,255,255,.4), 0 12px 28px rgba(11,117,104,.34);
+  }
+  .brand h1 { font-size: 1.55rem; letter-spacing: -.025em; }
+  .brand p { color: var(--ink2); font-size: .9rem; margin-top: 3px; }
+  .step-title { font-size: 1.14rem; font-weight: 700; text-align: center; letter-spacing: -.01em; }
+  .step-sub { color: var(--ink2); font-size: .87rem; text-align: center; margin-top: 4px; }
+
+  .people { border-radius: var(--r); overflow: hidden; max-height: 44dvh; overflow-y: auto; -webkit-overflow-scrolling: touch; margin-top: 10px; }
+  .person { display: flex; align-items: center; gap: 11px; width: 100%; padding: 13px 14px; font-size: 1rem; text-align: left; border-bottom: 1px solid var(--hair); }
+  .person:last-child { border-bottom: none; }
+  .person:active { background: var(--accent-bg); }
+  .avatar { width: 34px; height: 34px; border-radius: 50%; flex: none; background: var(--accent-bg); color: var(--accent); display: grid; place-items: center; font-weight: 800; font-size: .78rem; }
+  .empty-note { padding: 22px 16px; text-align: center; color: var(--ink2); font-size: .9rem; line-height: 1.5; }
+
+  .dots { display: flex; justify-content: center; gap: 13px; margin: 24px 0 4px; }
+  .dot { width: 15px; height: 15px; border-radius: 50%; border: 2px solid var(--hair); background: var(--glass3); transition: transform .12s; }
+  .dot.on { background: var(--accent); border-color: var(--accent); transform: scale(1.14); }
+  .dot.err { background: var(--red); border-color: var(--red); }
+  .pin-msg { text-align: center; font-size: .85rem; color: var(--red); min-height: 20px; margin-top: 10px; }
+  .keypad { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; max-width: 320px; margin: 8px auto 0; width: 100%; }
+  .key { height: 62px; border-radius: 20px; font-size: 1.55rem; font-weight: 500; display: grid; place-items: center; }
+  .key:active { background: var(--accent-bg); }
+  .key.flat { background: none; border: none; box-shadow: none; font-size: 1rem; font-weight: 650; color: var(--ink2); }
+  .field label { display: block; font-size: .78rem; color: var(--ink2); margin-bottom: 5px; font-weight: 700; }
+  .err-msg { color: var(--red); font-size: .85rem; text-align: center; min-height: 18px; }
+  .stack > * + * { margin-top: 10px; }
+
+  /* ---------- struttura app ---------- */
+  header {
+    position: sticky; top: calc(8px + env(safe-area-inset-top)); z-index: 20;
+    margin: calc(8px + env(safe-area-inset-top)) 12px 10px;
+    border-radius: 999px; padding: 8px 10px;
+    display: flex; align-items: center; gap: 8px;
+  }
+  header h2 { font-size: 1.02rem; letter-spacing: -.015em; flex: 1; text-align: center; }
+  .nav-btn { width: 34px; height: 34px; border-radius: 50%; display: grid; place-items: center; font-size: 1.05rem; flex: none; background: var(--glass2); border: 1px solid var(--edge); }
+  .nav-btn:active { background: var(--accent-bg); }
+  .me-chip { border-radius: 999px; padding: 7px 13px; font-size: .8rem; font-weight: 700; color: var(--accent); background: var(--accent-bg); flex: none; }
+
+  main { max-width: 560px; margin: 0 auto; padding: 0 12px calc(104px + env(safe-area-inset-bottom)); }
+  .card { border-radius: var(--r); padding: 15px; margin-bottom: 12px; }
+  .card h3 { font-size: 1rem; letter-spacing: -.01em; }
+  .sub { color: var(--ink2); font-size: .83rem; line-height: 1.5; }
+  .row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .spread { justify-content: space-between; }
+  .sect-title { font-size: .74rem; font-weight: 800; color: var(--ink2); text-transform: uppercase; letter-spacing: .06em; margin: 18px 4px 8px; }
+
+  .tabbar {
+    position: fixed; left: 14px; right: 14px; bottom: calc(10px + env(safe-area-inset-bottom));
+    z-index: 30; display: flex; border-radius: 26px; padding: 7px;
+    max-width: 420px; margin: 0 auto;
+  }
+  .tab { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 6px 2px; font-size: .67rem; font-weight: 700; color: var(--ink2); position: relative; border-radius: 20px; }
+  .tab .ic { font-size: 1.2rem; line-height: 1.15; }
+  .tab.on { color: var(--accent); background: var(--accent-bg); }
+  .tab .pip { position: absolute; top: 1px; right: 50%; margin-right: -22px; background: var(--red); color: #fff; font-size: .6rem; font-weight: 800; min-width: 17px; height: 17px; border-radius: 999px; padding: 0 4px; display: grid; place-items: center; }
+
+  /* ---------- calendario ---------- */
+  .dow { display: grid; grid-template-columns: repeat(7, 1fr); gap: 5px; margin-bottom: 6px; }
+  .dow span { text-align: center; font-size: .62rem; font-weight: 800; color: var(--ink2); text-transform: uppercase; letter-spacing: .05em; }
+  .dow span.we { color: var(--accent); }
+  .grid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 5px; }
+  .cell {
+    /* niente aspect-ratio: imporrebbe una larghezza minima e sfonderebbe la griglia */
+    min-width: 0; min-height: 64px; border-radius: 15px;
+    background: var(--glass3); border: 1px solid transparent;
+    display: flex; flex-direction: column; align-items: center; padding: 4px 2px; position: relative;
+  }
+  .cell.we { background: var(--accent-bg); }
+  .cell:active { transform: scale(.95); }
+  .cell .d { font-size: .95rem; font-weight: 650; line-height: 1.1; }
+  .cell.out { opacity: .32; }
+  .cell.past { opacity: .5; }
+  .cell.today { border-color: var(--accent); }
+  .cell.today .d { color: var(--accent); }
+  /* riga delle icone sotto al numero: niente sovrapposizioni su celle strette */
+  .cell .marks { display: flex; gap: 2px; align-items: center; justify-content: center; margin-top: 1px; min-height: 12px; }
+  .cell .mk { display: inline-flex; }
+  .cell .mk .i { width: 11px; height: 11px; }
+  .cell .mk.mio { border-radius: 5px; padding: 1px 2px; }
+  .cell .tag {
+    margin-top: auto; width: calc(100% - 4px); border-radius: 8px;
+    font-size: .57rem; font-weight: 800; padding: 2px 1px;
+    display: flex; align-items: center; justify-content: center; gap: 2px;
+    white-space: nowrap; overflow: hidden;
+  }
+  .cell .tag .i { width: 9px; height: 9px; }
+
+  #box-legenda summary { font-size: .85rem; font-weight: 650; color: var(--ink2); cursor: pointer; list-style: none; }
+  #box-legenda summary::-webkit-details-marker { display: none; }
+  #box-legenda summary::after { content: " ›"; }
+  #box-legenda[open] summary::after { content: " ⌄"; }
+  .legend { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 10px; margin-top: 12px; font-size: .7rem; color: var(--ink2); }
+  .legend span { display: flex; align-items: center; gap: 6px; line-height: 1.25; }
+  .legend .sw { flex: none; display: inline-flex; align-items: center; justify-content: center; }
+  .legend .sw .i { width: 13px; height: 13px; }
+  .legend .sw.mio { border-radius: 6px; padding: 2px 4px; }
+  .legend .sw.mio .i { width: 11px; height: 11px; }
+
+  /* ---------- schede richiesta ---------- */
+  .swap { border-radius: 18px; padding: 13px; background: var(--glass2); border: 1px solid var(--edge); margin-bottom: 10px; }
+  /* in bacheca le schede poggiano sullo sfondo: serve il vetro vero */
+  #view-board .swap {
+    -webkit-backdrop-filter: blur(22px) saturate(180%);
+    backdrop-filter: blur(22px) saturate(180%);
+    box-shadow: inset 0 1px 0 var(--sheen), var(--shadow);
+  }
+  .swap .top { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; }
+  .swap .who { font-weight: 700; font-size: .95rem; }
+  .swap .when { color: var(--ink2); font-size: .8rem; margin-top: 1px; }
+  .times { display: flex; align-items: center; gap: 8px; margin: 9px 0 2px; font-weight: 750; font-size: 1.02rem; flex-wrap: wrap; }
+  .times .ic { display: inline-flex; }
+  .i { width: 1.05em; height: 1.05em; display: inline-block; vertical-align: -.16em; }
+  .i svg { width: 100%; height: 100%; display: block; }
+  .c-aperta  { color: var(--amber); }
+  .c-presa   { color: var(--accent); }
+  .c-risolta { color: var(--green); }
+  .seg { display: flex; gap: 6px; padding: 4px; border-radius: 16px; margin: 4px 0 12px; background: var(--glass3); border: 1px solid var(--edge); }
+  .seg button { flex: 1; padding: 11px 6px; border-radius: 12px; font-size: .88rem; font-weight: 650; color: var(--ink2); }
+  .seg button.on { background: var(--glass); color: var(--accent); box-shadow: inset 0 1px 0 var(--sheen), 0 2px 8px rgba(0,0,0,.08); }
+  .times .arrow { color: var(--ink2); font-weight: 500; }
+  .times .old { color: var(--ink2); text-decoration: line-through; font-weight: 600; font-size: .92rem; }
+  .swap .acts { display: flex; gap: 7px; flex-wrap: wrap; margin-top: 11px; }
+  .hint { font-size: .78rem; color: var(--ink2); margin-top: 9px; line-height: 1.45;
+          background: var(--glass3); border-radius: 12px; padding: 9px 11px; }
+  .note-in { margin-top: 9px; }
+
+  /* ---------- striscia orari ---------- */
+  .strip { display: flex; gap: 7px; overflow-x: auto; padding: 3px 1px 7px; -webkit-overflow-scrolling: touch; scrollbar-width: none; }
+  .strip::-webkit-scrollbar { display: none; }
+  .tchip {
+    flex: none; padding: 10px 14px; border-radius: 13px; font-size: .95rem; font-weight: 650;
+    background: var(--glass3); border: 1px solid var(--edge);
+  }
+  .tchip.on { background: var(--accent); border-color: transparent; color: #fff; box-shadow: inset 0 1px 0 rgba(255,255,255,.3); }
+
+  /* giorni offerti in cambio */
+  .days { display: flex; gap: 6px; overflow-x: auto; padding: 3px 1px 4px; -webkit-overflow-scrolling: touch; scrollbar-width: none; }
+  .days::-webkit-scrollbar { display: none; }
+  .dchip {
+    flex: none; min-width: 54px; padding: 8px 6px; border-radius: 14px;
+    background: var(--glass3); border: 1px solid var(--edge);
+    display: flex; flex-direction: column; align-items: center; gap: 1px;
+    font-size: 1rem; font-weight: 700;
+  }
+  .dchip small { font-size: .58rem; font-weight: 800; text-transform: uppercase; letter-spacing: .05em; opacity: .7; }
+  .dchip.on { background: var(--accent); border-color: transparent; color: #fff; }
+  .dchip.on small { opacity: .9; }
+  .dchip:disabled { opacity: .3; }
+
+  /* ---------- pannello ---------- */
+  .scrim { position: fixed; inset: 0; background: rgba(5,20,22,.42); z-index: 40; opacity: 0; pointer-events: none; transition: opacity .22s; -webkit-backdrop-filter: blur(2px); backdrop-filter: blur(2px); }
+  .scrim.on { opacity: 1; pointer-events: auto; }
+  .sheet {
+    position: fixed; left: 8px; right: 8px; bottom: 0; z-index: 41;
+    border-radius: 28px 28px 0 0; max-height: 92dvh; overflow-y: auto; -webkit-overflow-scrolling: touch;
+    transform: translateY(102%); transition: transform .28s cubic-bezier(.32,.72,0,1);
+    padding: 8px 15px calc(20px + env(safe-area-inset-bottom));
+  }
+  .sheet.on { transform: translateY(0); }
+  .grab { width: 38px; height: 5px; border-radius: 99px; background: var(--hair); margin: 0 auto 12px; }
+  .sheet h3 { font-size: 1.18rem; letter-spacing: -.015em; }
+
+  #toast {
+    position: fixed; left: 50%; bottom: calc(104px + env(safe-area-inset-bottom));
+    transform: translate(-50%, 18px); z-index: 60;
+    background: rgba(15,32,34,.92); color: #fff; padding: 11px 18px; border-radius: 999px;
+    font-size: .87rem; font-weight: 650; max-width: 88vw; text-align: center;
+    opacity: 0; pointer-events: none; transition: all .22s;
+    -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px);
+  }
+  #toast.on { opacity: 1; transform: translate(-50%, 0); }
+  #toast.bad { background: rgba(188,49,69,.95); }
+  .banner { font-size: .77rem; font-weight: 650; padding: 9px 14px; text-align: center; line-height: 1.45; color: var(--amber); background: var(--amber-bg); }
+  .spin { text-align: center; padding: 40px 0; color: var(--ink2); font-size: .9rem; }
+  @media (prefers-color-scheme: dark) { .b.pri { color: #06231f; } .tchip.on { color: #06231f; } }
+</style>
+</head>
+<body>
+
+<div id="demo-banner" class="banner hide">
+  Modalità demo: i dati restano su questo telefono. Configura Supabase in <b>index.html</b> per usarla col team.
+</div>
+
+<!-- ============ ACCESSO ============ -->
+<section id="auth">
+  <div class="brand">
+    <div class="logo">🔄</div>
+    <h1>Cambio turni</h1>
+    <p>Trova un collega che ti copre, senza girare messaggi</p>
+  </div>
+
+  <div id="v-pick">
+    <div class="step-title">Chi sei?</div>
+    <div style="margin-top:14px"><input id="q-person" type="search" placeholder="Cerca il tuo nome" autocomplete="off"></div>
+    <div class="people g" id="people-list"></div>
+    <button class="link" id="go-register">Non sono in elenco, registrami →</button>
+  </div>
+
+  <div id="v-name" class="hide">
+    <div class="step-title">Come ti chiami?</div>
+    <div class="step-sub">Nome e cognome, come ti conoscono i colleghi</div>
+    <div class="stack" style="margin-top:18px">
+      <div class="field"><label for="in-name">Nome e cognome</label>
+        <input id="in-name" type="text" autocapitalize="words" autocomplete="name" placeholder="Mario Rossi"></div>
+      <div class="err-msg" id="name-err"></div>
+      <button class="b pri full" id="name-next">Continua</button>
+      <button class="link" id="back-pick">← Torna all'elenco</button>
+    </div>
+  </div>
+
+  <div id="v-pin" class="hide">
+    <div class="step-title" id="pin-title">Il tuo codice</div>
+    <div class="step-sub" id="pin-sub">6 cifre</div>
+    <div class="dots" id="pin-dots"></div>
+    <div class="pin-msg" id="pin-err"></div>
+    <div class="keypad" id="keypad"></div>
+    <button class="link" id="pin-back">← Indietro</button>
+  </div>
+</section>
+
+<!-- ============ APP ============ -->
+<section id="app" class="hide">
+  <header class="g">
+    <button class="nav-btn" id="prev-m">‹</button>
+    <h2 id="month-title">—</h2>
+    <button class="nav-btn" id="next-m">›</button>
+    <button class="me-chip" id="me-chip">—</button>
+  </header>
+
+  <main>
+    <div id="view-cal">
+      <div class="card g">
+        <div class="dow" id="dow"></div>
+        <div class="grid" id="grid"></div>
+      </div>
+      <div id="ukg-box"></div>
+      <div class="card g">
+        <div class="sub">Tocca il giorno che ti serve: puoi chiedere un <b>cambio orario</b> o un <b>giorno off</b>.
+        Chi può, risponde <b>“ci penso io”</b>. Poi il cambio vero si fa su UKG.
+        La settimana va da sabato a venerdì.</div>
+      </div>
+      <details class="card g" id="box-legenda">
+        <summary>Cosa vuol dire ogni simbolo</summary>
+        <div class="legend" id="legend"></div>
+      </details>
+    </div>
+
+    <div id="view-board" class="hide"></div>
+    <div id="view-me" class="hide"></div>
+  </main>
+
+  <nav class="tabbar g" id="tabbar"></nav>
+</section>
+
+<div class="scrim" id="scrim"></div>
+<div class="sheet g" id="sheet"><div class="grab"></div><div id="sheet-body"></div></div>
+<div id="toast"></div>
+
+<script type="module">
+import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm";
+
+/* ============================================================
+   CONFIGURAZIONE — incolla qui i dati del tuo progetto Supabase
+   (Project Settings → API). Finché restano così, l'app parte in
+   modalità demo con dati finti salvati solo su questo telefono.
+   ============================================================ */
+const SUPABASE_URL = "INCOLLA_QUI_URL";
+const SUPABASE_KEY = "INCOLLA_QUI_CHIAVE_PUBBLICA";
+
+// L'indirizzo del portale UKG: il pulsante "Apri UKG" lo apre in una scheda
+// nuova, così il cambio vero si fa senza cercarselo ogni volta.
+const UKG_URL = "https://applecomputer-sso.prd.mykronos.com";
+
+const DEMO = SUPABASE_URL.startsWith("INCOLLA") || new URLSearchParams(location.search).has("demo");
+const db = DEMO ? null : createClient(SUPABASE_URL, SUPABASE_KEY);
+
+/* ---------- date ---------- */
+const MESI = ["gennaio","febbraio","marzo","aprile","maggio","giugno","luglio","agosto","settembre","ottobre","novembre","dicembre"];
+const GG = ["domenica","lunedì","martedì","mercoledì","giovedì","venerdì","sabato"];
+const COL = ["sab","dom","lun","mar","mer","gio","ven"];        // settimana sabato → venerdì
+const pad = n => String(n).padStart(2, "0");
+const ymd = d => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+const fromYmd = s => { const [y, m, d] = s.split("-").map(Number); return new Date(y, m - 1, d); };
+const col = d => (d.getDay() + 1) % 7;                          // sabato = colonna 0
+const addDays = (d, n) => { const x = new Date(d); x.setDate(x.getDate() + n); return x; };
+const weekStart = d => addDays(d, -col(d));
+const today = () => { const d = new Date(); d.setHours(0, 0, 0, 0); return d; };
+const cap = s => s.charAt(0).toUpperCase() + s.slice(1);
+const dataLunga = s => { const d = fromYmd(s); return cap(`${GG[d.getDay()]} ${d.getDate()} ${MESI[d.getMonth()]}`); };
+const dataBreve = s => { const d = fromYmd(s); return `${GG[d.getDay()].slice(0, 3)} ${d.getDate()}`; };
+
+/* ---------- utilità ---------- */
+const $ = s => document.querySelector(s);
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const iniziali = n => n.trim().split(/\s+/).slice(0, 2).map(w => w[0]).join("").toUpperCase();
+const nome1 = n => String(n || "").split(" ")[0];
+
+let toastT;
+function toast(msg, bad = false) {
+  const t = $("#toast");
+  t.textContent = msg; t.className = "on" + (bad ? " bad" : "");
+  clearTimeout(toastT); toastT = setTimeout(() => (t.className = ""), 2600);
+}
+
+const ERRORI = {
+  NAME_INVALID: "Scrivi nome e cognome, per esempio Mario Rossi.",
+  NAME_TAKEN: "Questo nome è già registrato. Torna all'elenco e scegli il tuo nome.",
+  PIN_INVALID: "Il codice deve essere di 6 cifre.",
+  BAD_PIN: "Codice errato.",
+  TOO_MANY_ATTEMPTS: "Troppi tentativi. Riprova tra 15 minuti.",
+  ACCOUNT_DISABLED: "Il tuo accesso è stato disattivato.",
+  NOT_AUTHENTICATED: "Sessione scaduta, rientra con il tuo codice.",
+  NOT_ADMIN: "Non hai i permessi per farlo.",
+  DATE_PAST: "Questo giorno è già passato.",
+  TIME_REQUIRED: "Scegli un orario.",
+  KIND_INVALID: "Tipo di richiesta non valido.",
+  DATE_REQUIRED: "Riapri il giorno e riprova.",
+  OFFER_INVALID: "I giorni offerti devono stare nella stessa settimana, sabato-venerdì.",
+  OWN_REQUEST: "È la tua richiesta.",
+  ALREADY_TAKEN: "Qualcuno ci ha già pensato, aggiorna la pagina.",
+  NOT_TAKEN: "La richiesta non è più in attesa.",
+  NOT_RESOLVED: "La richiesta non è segnata come risolta.",
+  NOT_YOURS: "Solo chi ha chiesto e chi ha accettato possono farlo.",
+  NOT_FOUND: "Richiesta non trovata.",
+  CANNOT_EDIT_SELF: "Non puoi modificare il tuo stesso account."
+};
+const messaggio = e => {
+  const s = String(e?.message || e || "");
+  for (const k in ERRORI) if (s.includes(k)) return ERRORI[k];
+  return "Qualcosa è andato storto. Riprova.";
+};
+
+/* ============================================================
+   MODALITÀ DEMO — stesse funzioni del database, in memoria
+   ============================================================ */
+const demo = {
+  load() {
+    const raw = localStorage.getItem("cambioturni_demo");
+    if (raw) return JSON.parse(raw);
+    const nomi = ["Giulia Ferrari","Marco Bianchi","Sara Conti","Luca Greco","Elena Rossi","Paolo Marino",
+                  "Chiara Gallo","Davide Costa","Anna Ricci","Matteo Fontana","Sofia Barbieri","Andrea Villa"];
+    const membri = nomi.map((n, i) => ({ id: "d" + i, full_name: n, role: i === 0 ? "admin" : "member", active: true, pin: "000000" }));
+    const t = today();
+    const orari = ["08:00","08:30","09:00","09:30","10:00","13:00","14:00","15:00"];
+    const pick = a => a[Math.floor(Math.random() * a.length)];
+    const swaps = []; const usati = new Set();
+    for (let i = 0; i < 10; i++) {
+      const m = pick(membri), d = ymd(addDays(t, Math.floor(Math.random() * 20)));
+      if (usati.has(m.id + d)) continue;
+      usati.add(m.id + d);
+      const st = i < 6 ? "aperta" : (i < 9 ? "presa" : "risolta");
+      const kind = Math.random() < .6 ? "orario" : "off";
+      let taker = null;
+      if (st !== "aperta") { do { taker = pick(membri); } while (taker.id === m.id); }
+      const da = pick(orari);
+      let a = null;
+      if (kind === "orario") { do { a = pick(orari); } while (a === da); }   // un cambio a parità di orario non ha senso
+      // per i giorni off: un paio di giorni offerti in cambio nella stessa settimana
+      const offerte = [];
+      if (kind === "off") {
+        const ws = weekStart(fromYmd(d));
+        for (const k of [1, 4]) {
+          const o = ymd(addDays(ws, k));
+          if (o !== d && o >= ymd(t)) offerte.push({ d: o, t: pick(orari) });
+        }
+      }
+      swaps.push({
+        id: "s" + i, author_id: m.id, author_name: m.full_name, target_date: d, kind,
+        from_time: da, to_time: a, offers: offerte, status: st,
+        taker_id: taker ? taker.id : null, taker_name: taker ? taker.full_name : null,
+        taker_time: taker ? pick(orari) : null,
+        created_at: new Date().toISOString(), declines: []
+      });
+    }
+    const s = { membri, swaps, sess: {} };
+    demo.save(s); return s;
+  },
+  save(s) { localStorage.setItem("cambioturni_demo", JSON.stringify(s)); },
+  me(s, token) { const m = s.membri.find(x => x.id === s.sess[token]); if (!m || !m.active) throw new Error("NOT_AUTHENTICATED"); return m; },
+  admin(s, token) { const m = demo.me(s, token); if (m.role !== "admin") throw new Error("NOT_ADMIN"); return m; },
+  pub(m) { return { id: m.id, full_name: m.full_name, role: m.role, active: m.active }; },
+  vista(s, sw, meId) {
+    // privacy: chi ha accettato lo vedono solo i due interessati
+    const parte = sw.author_id === meId || sw.taker_id === meId;
+    return { ...sw,
+             taker_id:   parte ? sw.taker_id   || null : null,
+             taker_name: parte ? sw.taker_name || null : null,
+             taker_time: parte ? sw.taker_time || null : null,
+             taker_note: parte ? sw.taker_note || null : null,
+             declines: (sw.declines || []).length,
+             declined_by_me: (sw.declines || []).includes(meId) };
+  },
+  parte(sw, meId) { if (sw.author_id !== meId && sw.taker_id !== meId) throw new Error("NOT_YOURS"); },
+  trova(s, id) { const sw = s.swaps.find(x => x.id === id); if (!sw) throw new Error("NOT_FOUND"); return sw; },
+
+  async call(fn, a = {}) {
+    const s = demo.load();
+    const done = v => { demo.save(s); return v; };
+    switch (fn) {
+      case "api_people": return s.membri.filter(m => m.active).map(m => ({ id: m.id, full_name: m.full_name }))
+        .sort((x, y) => x.full_name.localeCompare(y.full_name));
+      case "api_register": {
+        const nome = (a.p_full_name || "").trim().replace(/\s+/g, " ");
+        if (nome.length < 3 || !nome.includes(" ")) throw new Error("NAME_INVALID");
+        if (!/^\d{6}$/.test(a.p_pin || "")) throw new Error("PIN_INVALID");
+        if (s.membri.some(m => m.full_name.toLowerCase() === nome.toLowerCase())) throw new Error("NAME_TAKEN");
+        const m = { id: "d" + Date.now(), full_name: nome, role: s.membri.length ? "member" : "admin", active: true, pin: a.p_pin };
+        s.membri.push(m);
+        const tk = "t" + Math.random().toString(36).slice(2); s.sess[tk] = m.id;
+        return done({ token: tk, member: demo.pub(m) });
+      }
+      case "api_login": {
+        const m = s.membri.find(x => x.id === a.p_id);
+        if (!m) throw new Error("NOT_FOUND");
+        if (!m.active) throw new Error("ACCOUNT_DISABLED");
+        if (m.pin !== a.p_pin) throw new Error("BAD_PIN");
+        const tk = "t" + Math.random().toString(36).slice(2); s.sess[tk] = m.id;
+        return done({ token: tk, member: demo.pub(m) });
+      }
+      case "api_session": return { member: demo.pub(demo.me(s, a.p_token)) };
+      case "api_logout": delete s.sess[a.p_token]; return done({ ok: true });
+      case "api_change_pin": {
+        const m = demo.me(s, a.p_token);
+        if (m.pin !== a.p_old) throw new Error("BAD_PIN");
+        if (!/^\d{6}$/.test(a.p_new || "")) throw new Error("PIN_INVALID");
+        m.pin = a.p_new; return done({ ok: true });
+      }
+      case "api_month": {
+        const m = demo.me(s, a.p_token);
+        return s.swaps.filter(x => x.status !== "annullata" && x.target_date >= a.p_from && x.target_date <= a.p_to)
+                      .map(x => demo.vista(s, x, m.id));
+      }
+      case "api_board": {
+        const m = demo.me(s, a.p_token);
+        return s.swaps.filter(x => x.status !== "annullata" && x.target_date >= ymd(today()))
+                      .map(x => demo.vista(s, x, m.id))
+                      .sort((x, y) => x.target_date.localeCompare(y.target_date));
+      }
+      case "api_create": {
+        const m = demo.me(s, a.p_token);
+        const kind = a.p_kind || "orario";
+        if (!a.p_date) throw new Error("DATE_REQUIRED");
+        if (a.p_date < ymd(today())) throw new Error("DATE_PAST");
+        if (!["orario","off"].includes(kind)) throw new Error("KIND_INVALID");
+        if (kind === "orario" && !a.p_to) throw new Error("TIME_REQUIRED");
+        const offerte = kind === "off" ? (a.p_offers || []) : [];
+        for (const o of offerte) {
+          if (!o.d || o.d === a.p_date) throw new Error("OFFER_INVALID");
+          if (ymd(weekStart(fromYmd(o.d))) !== ymd(weekStart(fromYmd(a.p_date)))) throw new Error("OFFER_INVALID");
+        }
+        let sw = s.swaps.find(x => x.author_id === m.id && x.target_date === a.p_date && ["aperta","presa"].includes(x.status));
+        if (!sw) { sw = { id: "s" + Date.now(), author_id: m.id, author_name: m.full_name, target_date: a.p_date, created_at: new Date().toISOString() }; s.swaps.push(sw); }
+        Object.assign(sw, { kind, to_time: kind === "off" ? null : a.p_to, from_time: a.p_from || null,
+                            offers: offerte.slice().sort((x, y) => x.d.localeCompare(y.d)),
+                            status: "aperta", taker_id: null, taker_name: null, taker_time: null, declines: [] });
+        return done({ ok: true, id: sw.id });
+      }
+      case "api_take": {
+        const m = demo.me(s, a.p_token); const sw = demo.trova(s, a.p_id);
+        if (sw.author_id === m.id) throw new Error("OWN_REQUEST");
+        if (sw.status !== "aperta") throw new Error("ALREADY_TAKEN");
+        if (sw.kind !== "off" && !a.p_my_time) throw new Error("TIME_REQUIRED");
+        Object.assign(sw, { status: "presa", taker_id: m.id, taker_name: m.full_name,
+                            taker_time: a.p_my_time || null, taker_note: (a.p_note || "").trim() || null });
+        sw.declines = (sw.declines || []).filter(x => x !== m.id);
+        return done({ ok: true });
+      }
+      case "api_release": {
+        const m = demo.me(s, a.p_token); const sw = demo.trova(s, a.p_id); demo.parte(sw, m.id);
+        if (!["presa","risolta"].includes(sw.status)) throw new Error("NOT_TAKEN");
+        Object.assign(sw, { status: "aperta", taker_id: null, taker_name: null, taker_time: null, taker_note: null });
+        return done({ ok: true });
+      }
+      case "api_resolve": {
+        const m = demo.me(s, a.p_token); const sw = demo.trova(s, a.p_id); demo.parte(sw, m.id);
+        if (sw.status !== "presa") throw new Error("NOT_TAKEN");
+        sw.status = "risolta"; return done({ ok: true });
+      }
+      case "api_reopen": {
+        const m = demo.me(s, a.p_token); const sw = demo.trova(s, a.p_id); demo.parte(sw, m.id);
+        if (sw.status !== "risolta") throw new Error("NOT_RESOLVED");
+        sw.status = "presa"; return done({ ok: true });
+      }
+      case "api_cancel": {
+        const m = demo.me(s, a.p_token); const sw = demo.trova(s, a.p_id); demo.parte(sw, m.id);
+        sw.status = "annullata"; return done({ ok: true });
+      }
+      case "api_decline": {
+        const m = demo.me(s, a.p_token); const sw = demo.trova(s, a.p_id);
+        sw.declines = sw.declines || [];
+        if (a.p_on) { if (!sw.declines.includes(m.id)) sw.declines.push(m.id); }
+        else sw.declines = sw.declines.filter(x => x !== m.id);
+        return done({ ok: true });
+      }
+      case "api_members": { demo.admin(s, a.p_token); return s.membri.map(demo.pub).sort((x, y) => x.full_name.localeCompare(y.full_name)); }
+      case "api_member_update": {
+        const ad = demo.admin(s, a.p_token);
+        if (a.p_id === ad.id && (a.p_role != null || a.p_active != null)) throw new Error("CANNOT_EDIT_SELF");
+        const m = s.membri.find(x => x.id === a.p_id); if (!m) throw new Error("NOT_FOUND");
+        if (a.p_role != null) m.role = a.p_role;
+        if (a.p_active != null) m.active = a.p_active;
+        if (a.p_pin != null) { if (!/^\d{6}$/.test(a.p_pin)) throw new Error("PIN_INVALID"); m.pin = a.p_pin; }
+        return done({ ok: true });
+      }
+      case "api_member_delete": {
+        const ad = demo.admin(s, a.p_token);
+        if (a.p_id === ad.id) throw new Error("CANNOT_EDIT_SELF");
+        s.membri = s.membri.filter(x => x.id !== a.p_id);
+        s.swaps = s.swaps.filter(x => x.author_id !== a.p_id);
+        return done({ ok: true });
+      }
+      default: throw new Error("Funzione sconosciuta: " + fn);
+    }
+  }
+};
+
+async function api(fn, args = {}) {
+  if (DEMO) return demo.call(fn, args);
+  const { data, error } = await db.rpc(fn, args);
+  if (error) throw new Error(error.message || "Errore di rete");
+  return data;
+}
+
+/* ============================================================
+   STATO
+   ============================================================ */
+const S = {
+  token: localStorage.getItem("cambioturni_token") || null,
+  me: null,
+  cursor: (() => { const d = today(); return new Date(d.getFullYear(), d.getMonth(), 1); })(),
+  mese: [],        // richieste del mese visibile
+  board: [],       // richieste da oggi in poi
+  tab: "cal",
+  sheetDate: null,
+  takeFor: null,     // id della richiesta per cui sto scegliendo il mio orario
+  takeTime: "09:00",
+  takeNote: "",      // commento facoltativo di chi accetta
+  nuovoKind: "orario", // "orario" = cambio orario, "off" = giorno libero
+  nuovoA: "09:30",   // "vorrei iniziare alle"
+  nuovoDa: "",       // "il mio turno ora" (facoltativo)
+  nuoveOfferte: {}   // solo per il giorno off: { "2026-09-01": "09:00", ... }
+};
+
+// gli orari possibili vanno dalle 8 alle 18
+const ORARI = (() => {
+  const out = [];
+  for (let h = 8; h <= 18; h++) { out.push(pad(h) + ":00"); if (h < 18) out.push(pad(h) + ":30"); }
+  return out;
+})();
+
+// Icone disegnate, non emoji: così prendono il colore dello stato
+const SVG = {
+  orario: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 6.6v5.6l3.4 2"/></svg>`,
+  off: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="16" rx="3.2"/><path d="M8 2.8v4.4M16 2.8v4.4M3 10.4h18"/></svg>`
+};
+const ICONA = k => `<span class="i">${SVG[k] || SVG.orario}</span>`;
+
+// Le otto combinazioni: tipo di richiesta × di chi è × a che punto sta
+function etichetta(sw) {
+  if (sw.status === "risolta") return "Risolto";
+  const mio = sw.author_id === S.me.id;
+  const off = sw.kind === "off";
+  if (sw.status === "presa") {
+    return mio ? (off ? "Mio giorno off in pending" : "Mio cambio orario in pending")
+               : (off ? "Giorno off in pending"     : "Cambio orario in pending");
+  }
+  return mio ? (off ? "Mio giorno off proposto"  : "Mio cambio orario proposto")
+             : (off ? "Giorno off richiesto"     : "Cambio orario disponibile");
+}
+// classe colore: ambra quando è ancora da prendere, verde acqua quando è in pending
+const classeStato  = sw => sw.status === "risolta" ? "s-risolta" : (sw.status === "presa" ? "s-presa" : "s-aperta");
+const classeColore = sw => sw.status === "risolta" ? "c-risolta" : (sw.status === "presa" ? "c-presa" : "c-aperta");
+
+/* ============================================================
+   ACCESSO
+   ============================================================ */
+let persone = [], scelto = null, modoPin = "login", nomeNuovo = "", pin = "", pinPrimo = "";
+
+async function caricaPersone() {
+  try { persone = await api("api_people"); } catch { persone = []; }
+  disegnaPersone();
+  if (!persone.length) mostraStep("name");
+}
+function disegnaPersone() {
+  const q = $("#q-person").value.trim().toLowerCase();
+  const list = persone.filter(p => p.full_name.toLowerCase().includes(q));
+  $("#people-list").innerHTML = list.length
+    ? list.map(p => `<button class="person" data-id="${esc(p.id)}">
+         <span class="avatar">${esc(iniziali(p.full_name))}</span>${esc(p.full_name)}</button>`).join("")
+    : `<div class="empty-note">${persone.length ? "Nessun nome trovato." : "Nessuno si è ancora registrato.<br>Sei il primo."}</div>`;
+}
+function mostraStep(step) {
+  $("#v-pick").classList.toggle("hide", step !== "pick");
+  $("#v-name").classList.toggle("hide", step !== "name");
+  $("#v-pin").classList.toggle("hide", step !== "pin");
+  if (step === "pick") { $("#q-person").value = ""; disegnaPersone(); }
+}
+function disegnaPin() {
+  $("#pin-dots").innerHTML = Array.from({ length: 6 }, (_, i) => `<div class="dot ${i < pin.length ? "on" : ""}"></div>`).join("");
+}
+function erroreDot(msg) {
+  $("#pin-err").textContent = msg;
+  document.querySelectorAll("#pin-dots .dot").forEach(d => d.classList.add("err"));
+  setTimeout(() => { pin = ""; disegnaPin(); }, 550);
+}
+
+$("#keypad").innerHTML =
+  [1,2,3,4,5,6,7,8,9].map(n => `<button class="key g" data-k="${n}">${n}</button>`).join("") +
+  `<button class="key flat" data-k="clear">annulla</button>
+   <button class="key g" data-k="0">0</button>
+   <button class="key flat" data-k="back">⌫</button>`;
+
+$("#keypad").addEventListener("click", e => {
+  const b = e.target.closest("[data-k]"); if (!b) return;
+  $("#pin-err").textContent = "";
+  const k = b.dataset.k;
+  if (k === "back") pin = pin.slice(0, -1);
+  else if (k === "clear") pin = "";
+  else if (pin.length < 6) pin += k;
+  disegnaPin();
+  if (navigator.vibrate) navigator.vibrate(8);
+  if (pin.length === 6) setTimeout(inviaPin, 130);
+});
+
+async function inviaPin() {
+  const code = pin;
+  if (modoPin === "login") {
+    try { entra(await api("api_login", { p_id: scelto.id, p_pin: code })); }
+    catch (e) { erroreDot(messaggio(e)); }
+  } else if (modoPin === "new1") {
+    pinPrimo = code; pin = ""; disegnaPin(); modoPin = "new2";
+    $("#pin-title").textContent = "Ripeti il codice";
+    $("#pin-sub").textContent = "Per essere sicuri che te lo ricordi";
+  } else {
+    if (code !== pinPrimo) {
+      modoPin = "new1"; pinPrimo = "";
+      $("#pin-title").textContent = "Crea il tuo codice";
+      $("#pin-sub").textContent = "6 cifre, servirà per entrare";
+      erroreDot("I due codici non coincidono. Riprova.");
+      return;
+    }
+    try {
+      const r = await api("api_register", { p_full_name: nomeNuovo, p_pin: code });
+      entra(r); toast("Benvenuto/a " + nome1(r.member.full_name) + "!");
+    } catch (e) { erroreDot(messaggio(e)); }
+  }
+}
+function apriPin(modo, titolo, sotto) {
+  modoPin = modo; pin = ""; pinPrimo = "";
+  $("#pin-title").textContent = titolo; $("#pin-sub").textContent = sotto;
+  $("#pin-err").textContent = ""; disegnaPin(); mostraStep("pin");
+}
+
+$("#q-person").addEventListener("input", disegnaPersone);
+$("#people-list").addEventListener("click", e => {
+  const b = e.target.closest(".person"); if (!b) return;
+  scelto = persone.find(p => String(p.id) === b.dataset.id);
+  apriPin("login", "Ciao " + nome1(scelto.full_name), "Inserisci il tuo codice di 6 cifre");
+});
+$("#go-register").onclick = () => { $("#name-err").textContent = ""; mostraStep("name"); };
+$("#back-pick").onclick = () => mostraStep("pick");
+$("#pin-back").onclick = () => mostraStep(modoPin === "login" ? "pick" : "name");
+$("#name-next").onclick = () => {
+  const n = $("#in-name").value.trim().replace(/\s+/g, " ");
+  if (n.length < 3 || !n.includes(" ")) { $("#name-err").textContent = ERRORI.NAME_INVALID; return; }
+  if (persone.some(p => p.full_name.toLowerCase() === n.toLowerCase())) { $("#name-err").textContent = ERRORI.NAME_TAKEN; return; }
+  nomeNuovo = n; apriPin("new1", "Crea il tuo codice", "6 cifre, servirà per entrare");
+};
+$("#in-name").addEventListener("keydown", e => { if (e.key === "Enter") $("#name-next").click(); });
+
+function entra(r) {
+  S.token = r.token; S.me = r.member;
+  localStorage.setItem("cambioturni_token", r.token);
+  avvia();
+}
+async function esci() {
+  try { await api("api_logout", { p_token: S.token }); } catch {}
+  localStorage.removeItem("cambioturni_token");
+  S.token = null; S.me = null;
+  $("#app").classList.add("hide"); $("#auth").classList.remove("hide");
+  mostraStep("pick"); caricaPersone();
+}
+
+/* ============================================================
+   DATI
+   ============================================================ */
+async function ricarica() {
+  const c = S.cursor;
+  const da = ymd(weekStart(new Date(c.getFullYear(), c.getMonth(), 1)));
+  const a  = ymd(addDays(weekStart(new Date(c.getFullYear(), c.getMonth() + 1, 0)), 6));
+  try {
+    const [mese, board] = await Promise.all([
+      api("api_month", { p_token: S.token, p_from: da, p_to: a }),
+      api("api_board", { p_token: S.token })
+    ]);
+    S.mese = mese || []; S.board = board || [];
+  } catch (e) {
+    if (String(e.message).includes("NOT_AUTHENTICATED")) return esci();
+    toast(messaggio(e), true);
+  }
+  disegna();
+}
+
+function disegna() {
+  disegnaTab();
+  if (S.tab === "cal") disegnaCalendario();
+  if (S.tab === "board") disegnaBacheca();
+  if (S.tab === "me") disegnaProfilo();
+  if (S.sheetDate) disegnaSheet();
+}
+
+/* ============================================================
+   CALENDARIO
+   ============================================================ */
+// icona nuda = richiesta di un collega; icona nella pastiglia colorata = roba mia
+const LEGENDA = [
+  ["orario", "c-aperta", false, "Cambio orario disponibile"],
+  ["off",    "c-aperta", false, "Giorno off richiesto"],
+  ["orario", "c-presa",  false, "Cambio orario in pending"],
+  ["off",    "c-presa",  false, "Giorno off in pending"],
+  ["orario", "s-aperta", true,  "Mio cambio orario proposto"],
+  ["off",    "s-aperta", true,  "Mio giorno off proposto"],
+  ["orario", "s-presa",  true,  "Mio cambio orario in pending"],
+  ["off",    "s-presa",  true,  "Mio giorno off in pending"],
+  ["orario", "c-risolta", false, "Risolto: sparisce dal calendario"]
+];
+
+function disegnaCalendario() {
+  const c = S.cursor;
+  $("#month-title").textContent = cap(MESI[c.getMonth()]) + " " + c.getFullYear();
+  $("#dow").innerHTML = COL.map((g, i) => `<span class="${i < 2 ? "we" : ""}">${g}</span>`).join("");
+  $("#legend").innerHTML = LEGENDA.map(([k, cls, mio, testo]) =>
+    `<span><span class="sw ${mio ? "mio " : ""}${cls}">${ICONA(k)}</span>${testo}</span>`).join("");
+
+  const primo = new Date(c.getFullYear(), c.getMonth(), 1);
+  const ultimo = new Date(c.getFullYear(), c.getMonth() + 1, 0);
+  const inizio = weekStart(primo), fine = addDays(weekStart(ultimo), 6);
+  const oggi = ymd(today());
+
+  let html = "";
+  for (let d = new Date(inizio); d <= fine; d = addDays(d, 1)) {
+    const s = ymd(d);
+    const delGiorno = S.mese.filter(x => x.target_date === s);
+    // posso essere sia autore sia "ci penso io" nello stesso giorno: la mia richiesta ha la precedenza
+    const daAutore = delGiorno.find(x => x.author_id === S.me.id);
+    const daTaker  = delGiorno.find(x => x.taker_id === S.me.id);
+    const mia = daAutore || daTaker;
+    // le richieste dei colleghi: icona in alto, colore per lo stato
+    const altrui = delGiorno
+      .filter(x => x.author_id !== S.me.id && x.taker_id !== S.me.id && x.status !== "risolta")
+      .sort((x, y) => (x.status === "aperta" ? 0 : 1) - (y.status === "aperta" ? 0 : 1))
+      .slice(0, 3);
+    const cls = ["cell"];
+    if (col(d) < 2) cls.push("we");
+    if (d.getMonth() !== c.getMonth()) cls.push("out");
+    if (s < oggi) cls.push("past");
+    if (s === oggi) cls.push("today");
+    html += `<button class="${cls.join(" ")}" data-d="${s}">
+      <span class="d">${d.getDate()}</span>
+      ${altrui.length || (daAutore && daTaker) ? `<span class="marks">${
+          altrui.map(x => `<span class="mk ${classeColore(x)}">${ICONA(x.kind)}</span>`).join("")
+        }${daAutore && daTaker ? `<span class="mk mio ${classeStato(daTaker)}">${ICONA(daTaker.kind)}</span>` : ""}</span>` : ""}
+      ${mia ? `<span class="tag ${classeStato(mia)}">${ICONA(mia.kind)}${
+          esc(mia === daAutore ? (mia.kind === "off" ? "" : mia.to_time || "") : (mia.taker_time || ""))}</span>` : ""}
+    </button>`;
+  }
+  $("#grid").innerHTML = html;
+}
+
+$("#prev-m").onclick = () => { S.cursor = new Date(S.cursor.getFullYear(), S.cursor.getMonth() - 1, 1); ricarica(); };
+$("#next-m").onclick = () => { S.cursor = new Date(S.cursor.getFullYear(), S.cursor.getMonth() + 1, 1); ricarica(); };
+$("#grid").addEventListener("click", e => {
+  const b = e.target.closest(".cell"); if (!b) return;
+  apriGiorno(b.dataset.d);
+});
+
+/* ============================================================
+   SCHEDA DI UNA RICHIESTA
+   ============================================================ */
+function strisciaOrari(sel, quale) {
+  return `<div class="strip" data-strip="${quale}">${ORARI.map(o =>
+    `<button class="tchip ${o === sel ? "on" : ""}" data-time="${o}">${o}</button>`).join("")}</div>`;
+}
+
+function schedaSwap(sw, conData = true) {
+  const mio = sw.author_id === S.me.id;
+  const preso = sw.taker_id === S.me.id;
+  const parte = mio || preso;
+  const scelta = S.takeFor === sw.id;
+
+  let acts = "";
+  if (sw.status === "aperta") {
+    if (mio) {
+      acts = `<button class="b sm" data-act="edit" data-id="${sw.id}" data-d="${sw.target_date}">${sw.kind === "off" ? "Modifica richiesta" : "Modifica orario"}</button>
+              <button class="b sm bad" data-act="cancel" data-id="${sw.id}">Annulla richiesta</button>`;
+    } else if (scelta) {
+      acts = `<button class="b sm pri" data-act="take-ok" data-id="${sw.id}">Confermo</button>
+              <button class="b sm" data-act="take-no">Lascia perdere</button>`;
+    } else {
+      acts = `<button class="b sm pri" data-act="take" data-id="${sw.id}">Ci penso io</button>
+              ${sw.declined_by_me
+                ? `<button class="b sm warn" data-act="undecline" data-id="${sw.id}">Hai detto non posso · ripensaci</button>`
+                : `<button class="b sm" data-act="decline" data-id="${sw.id}">Non posso</button>`}`;
+    }
+  } else if (sw.status === "presa" && parte) {
+    acts = `<button class="b sm ok" data-act="resolve" data-id="${sw.id}">Risolto</button>
+            ${UKG_URL ? `<a class="b sm" href="${esc(UKG_URL)}" target="_blank" rel="noopener">Apri UKG</a>` : ""}
+            <button class="b sm" data-act="release" data-id="${sw.id}">Torna all'inizio</button>
+            <button class="b sm bad" data-act="cancel" data-id="${sw.id}">Annulla</button>`;
+  } else if (sw.status === "risolta" && parte) {
+    acts = `<button class="b sm" data-act="reopen" data-id="${sw.id}">Riapri</button>`;
+  }
+
+  const off = sw.kind === "off";
+  // il nome di chi ha accettato arriva solo ai due interessati: per gli altri
+  // il server non lo manda proprio e resta solo "in pending"
+  const conChi = sw.taker_id
+    ? `<div class="sub" style="margin-top:6px">🤝 ${esc(nome1(sw.taker_name))} ${off ? "copre il turno" : "inizia"}${sw.taker_time ? ` alle <b>${esc(sw.taker_time)}</b>` : ""}${preso ? " (sei tu)" : ""}</div>`
+      + (sw.taker_note ? `<div class="sub" style="margin-top:3px">💬 “${esc(sw.taker_note)}”</div>` : "")
+    : "";
+  const rifiuti = sw.status === "aperta" && sw.declines
+    ? `<div class="sub" style="margin-top:4px">${sw.declines} ${sw.declines === 1 ? "collega non può" : "colleghi non possono"}</div>` : "";
+
+  const righeOrari = off
+    ? `<span>Giornata libera</span>${sw.from_time ? `<span class="old">turno delle ${esc(sw.from_time)}</span>` : ""}`
+    : `${sw.from_time ? `<span class="old">${esc(sw.from_time)}</span><span class="arrow">→</span>` : `<span class="arrow">inizio alle</span>`}<span>${esc(sw.to_time || "")}</span>`;
+
+  return `<div class="swap">
+    <div class="top">
+      <div>
+        <div class="who">${mio ? "La tua richiesta" : esc(sw.author_name)}</div>
+        ${conData ? `<div class="when">${esc(dataLunga(sw.target_date))}</div>` : ""}
+      </div>
+      <span class="pill ${classeStato(sw)}">${etichetta(sw)}</span>
+    </div>
+    <div class="times"><span class="ic ${classeColore(sw)}">${ICONA(sw.kind)}</span>${righeOrari}</div>
+    ${off && sw.offers && sw.offers.length
+      ? `<div class="sub" style="margin-top:6px">🔁 In cambio ${mio ? "puoi" : "può"} lavorare: ${
+          sw.offers.map(o => `<b>${esc(cap(dataBreve(o.d)))}</b>${o.t ? " dalle " + esc(o.t) : ""}`).join(" · ")}</div>`
+      : ""}
+    ${conChi}${rifiuti}
+    ${sw.status === "presa" && parte ? `<div class="hint">Ora fate il cambio sul portale UKG. Quando è passato, uno dei due tocca <b>Risolto</b>.</div>` : ""}
+    ${scelta ? `<div style="margin-top:11px">
+      <div class="sub" style="margin-bottom:5px">${off ? "A che ora inizia il turno che copri?" : "A che ora inizi <b>tu</b> quel giorno?"}</div>
+      ${strisciaOrari(S.takeTime, "tk")}
+      <input class="note-in" data-note maxlength="200" value="${esc(S.takeNote)}"
+             placeholder="Un commento per ${esc(nome1(sw.author_name))}? (facoltativo)">
+    </div>` : ""}
+    <div class="acts">${acts}</div>
+  </div>`;
+}
+
+/* ============================================================
+   PANNELLO DEL GIORNO
+   ============================================================ */
+function apriGiorno(dstr) {
+  S.sheetDate = dstr; S.takeFor = null;
+  const mia = S.mese.find(x => x.target_date === dstr && x.author_id === S.me.id && x.status !== "risolta");
+  S.nuovoKind = mia ? mia.kind : "orario";
+  S.nuovoA = (mia && mia.to_time) || "09:30";
+  S.nuovoDa = (mia && mia.from_time) || "";
+  S.nuoveOfferte = {};
+  if (mia && mia.kind === "off") (mia.offers || []).forEach(o => { S.nuoveOfferte[o.d] = o.t || ""; });
+  disegnaSheet();
+  $("#scrim").classList.add("on"); $("#sheet").classList.add("on");
+}
+function chiudiSheet() {
+  $("#scrim").classList.remove("on"); $("#sheet").classList.remove("on");
+  S.sheetDate = null; S.takeFor = null;
+}
+$("#scrim").onclick = chiudiSheet;
+
+function disegnaSheet() {
+  const dstr = S.sheetDate;
+  const passato = dstr < ymd(today());
+  const delGiorno = S.mese.filter(x => x.target_date === dstr);
+  const mia = delGiorno.find(x => x.author_id === S.me.id && x.status !== "risolta");
+  const altre = delGiorno.filter(x => x.author_id !== S.me.id);
+
+  let h = `<h3>${esc(dataLunga(dstr))}</h3>`;
+
+  if (mia) h += `<div class="sect-title">La tua richiesta</div>${schedaSwap(mia, false)}`;
+  if (altre.length) {
+    h += `<div class="sect-title">${altre.length === 1 ? "Richiesta dei colleghi" : "Richieste dei colleghi"}</div>`;
+    h += altre.map(x => schedaSwap(x, false)).join("");
+  }
+  if (!mia && !altre.length) h += `<div class="sub" style="margin:12px 0">Nessuna richiesta per questo giorno.</div>`;
+
+  if (!passato) {
+    const off = S.nuovoKind === "off";
+    h += `<div class="sect-title">${mia ? "Cambia la tua richiesta" : "Chiedi un cambio"}</div>
+      <div class="seg">
+        <button data-act="kind" data-k="orario" class="${off ? "" : "on"}">${ICONA("orario")} Cambio orario</button>
+        <button data-act="kind" data-k="off" class="${off ? "on" : ""}">${ICONA("off")} Giorno off</button>
+      </div>
+      ${off
+        ? `<div class="sub" style="margin-bottom:6px">Chiedo di avere la giornata libera: qualcuno copre il mio turno.</div>`
+        : `<div class="sub" style="margin-bottom:6px">Vorrei iniziare alle…</div>${strisciaOrari(S.nuovoA, "to")}`}
+      <div class="sub" style="margin:10px 0 6px">Il mio turno adesso
+        <span style="opacity:.7">(${off ? "così i colleghi sanno che turno coprirebbero" : "facoltativo, aiuta i colleghi a capire il cambio"})</span></div>
+      ${strisciaOrari(S.nuovoDa, "from")}
+      ${off ? bloccoOfferte(dstr) : ""}
+      <div class="stack" style="margin-top:14px">
+        <button class="b pri full" data-act="create">${mia ? "Aggiorna la richiesta" : "Pubblica la richiesta"}</button>
+        <button class="b full" data-act="close">Chiudi</button>
+      </div>`;
+  } else {
+    h += `<div class="stack" style="margin-top:14px"><button class="b full" data-act="close">Chiudi</button></div>`;
+  }
+
+  $("#sheet-body").innerHTML = h;
+  autoScrollStrisce();
+}
+
+// Giorno off: quali altri giorni della settimana posso dare in cambio, e a che ora
+function bloccoOfferte(dstr) {
+  const ws = weekStart(fromYmd(dstr));
+  const oggi = ymd(today());
+  let chips = "";
+  for (let i = 0; i < 7; i++) {
+    const d = addDays(ws, i), s = ymd(d);
+    const bloccato = s === dstr || s < oggi;
+    chips += `<button class="dchip ${S.nuoveOfferte[s] !== undefined ? "on" : ""}"
+        data-act="offer" data-d="${s}" ${bloccato ? "disabled" : ""}>
+        <small>${COL[i]}</small>${d.getDate()}</button>`;
+  }
+  const scelti = Object.keys(S.nuoveOfferte).sort();
+  const righe = scelti.map(s => `
+    <div style="margin-top:10px">
+      <div class="sub" style="margin-bottom:4px"><b>${esc(cap(dataBreve(s)))}</b> — preferirei entrare alle</div>
+      ${strisciaOrari(S.nuoveOfferte[s], "of:" + s)}
+    </div>`).join("");
+
+  return `<div class="sub" style="margin:14px 0 6px">In cambio posso lavorare in questi giorni
+      <span style="opacity:.7">(i tuoi giorni liberi: puoi sceglierne più di uno, l'orario è facoltativo)</span></div>
+    <div class="days">${chips}</div>${righe}`;
+}
+
+function autoScrollStrisce() {
+  document.querySelectorAll(".strip").forEach(st => {
+    const on = st.querySelector(".tchip.on");
+    if (on) st.scrollLeft = Math.max(0, on.offsetLeft - 90);
+  });
+}
+
+/* ============================================================
+   BACHECA
+   ============================================================ */
+function disegnaBacheca() {
+  const meId = S.me.id;
+  const daAiutare = S.board.filter(x => x.status === "aperta" && x.author_id !== meId);
+  const mie = S.board.filter(x => x.author_id === meId);
+  const prese = S.board.filter(x => x.taker_id === meId);
+
+  const sezione = (titolo, lista, vuoto) =>
+    `<div class="sect-title">${titolo}</div>` +
+    (lista.length ? lista.map(x => schedaSwap(x)).join("") : `<div class="card g"><div class="sub">${vuoto}</div></div>`);
+
+  $("#view-board").innerHTML =
+    sezione(`Chi cerca un cambio${daAiutare.length ? " · " + daAiutare.length : ""}`, daAiutare,
+            "Nessuno sta cercando un cambio in questo momento.") +
+    sezione("Le mie richieste", mie, "Non hai richieste aperte. Tocca un giorno sul calendario per crearne una.") +
+    (prese.length ? sezione("Ci penso io", prese, "") : "");
+  autoScrollStrisce();
+}
+
+/* ============================================================
+   PROFILO
+   ============================================================ */
+async function disegnaProfilo() {
+  const v = $("#view-me");
+  v.innerHTML = `
+    <div class="card g">
+      <h3>${esc(S.me.full_name)}</h3>
+      <div class="sub">${DEMO ? "Modalità demo · " : ""}Il tuo codice serve solo a farti riconoscere dai colleghi.</div>
+    </div>
+    <div class="card g">
+      <h3>Cambia il tuo codice</h3>
+      <div class="stack" style="margin-top:10px">
+        <input type="tel" inputmode="numeric" maxlength="6" id="pin-old" placeholder="Codice attuale">
+        <input type="tel" inputmode="numeric" maxlength="6" id="pin-new" placeholder="Nuovo codice (6 cifre)">
+        <button class="b pri full" id="do-pin">Aggiorna codice</button>
+      </div>
+    </div>
+    <div id="team-box"></div>
+    <button class="b full" id="do-logout">Esci</button>`;
+
+  $("#do-pin").onclick = async () => {
+    try {
+      await api("api_change_pin", { p_token: S.token, p_old: $("#pin-old").value.trim(), p_new: $("#pin-new").value.trim() });
+      toast("Codice aggiornato"); $("#pin-old").value = ""; $("#pin-new").value = "";
+    } catch (e) { toast(messaggio(e), true); }
+  };
+  $("#do-logout").onclick = esci;
+
+  if (S.me.role !== "admin") return;
+  let membri = [];
+  try { membri = await api("api_members", { p_token: S.token }); } catch { return; }
+
+  $("#team-box").innerHTML = `<div class="card g">
+    <h3>Gestione elenco <span class="sub">(${membri.length})</span></h3>
+    <div class="sub" style="margin-bottom:6px">Non serve ad approvare niente: solo per rimettere a posto un codice
+    dimenticato o togliere chi non lavora più con voi.</div>
+    ${membri.map(m => `<div class="swap" style="margin-top:8px">
+      <div class="top"><div><div class="who">${esc(m.full_name)}</div>
+        <div class="when">${m.active ? "attivo" : "disattivato"}${m.role === "admin" ? " · gestisce l'elenco" : ""}</div></div></div>
+      ${m.id === S.me.id ? `<div class="sub" style="margin-top:6px">Sei tu</div>` : `<div class="acts">
+        <button class="b sm" data-act="m-pin" data-id="${esc(m.id)}">Reimposta codice</button>
+        <button class="b sm" data-act="m-active" data-id="${esc(m.id)}" data-to="${m.active ? "0" : "1"}">${m.active ? "Disattiva" : "Riattiva"}</button>
+        <button class="b sm" data-act="m-role" data-id="${esc(m.id)}" data-to="${m.role === "admin" ? "member" : "admin"}">${m.role === "admin" ? "Non gestisce più" : "Fai gestire anche a lui"}</button>
+      </div>`}
+    </div>`).join("")}</div>`;
+}
+
+/* ============================================================
+   AZIONI (un solo gestore per tutta l'app)
+   ============================================================ */
+document.addEventListener("click", async e => {
+  const b = e.target.closest("[data-act]");
+  if (!b || b.tagName === "A") return;
+  const { act, id } = b.dataset;
+  const chiama = async (fn, args, msg) => {
+    b.disabled = true;
+    try { await api(fn, { p_token: S.token, ...args }); if (msg) toast(msg); await ricarica(); }
+    catch (err) { toast(messaggio(err), true); }
+    finally { b.disabled = false; }
+  };
+
+  switch (act) {
+    case "close":   return chiudiSheet();
+    case "take": {
+      // proponi già l'orario più probabile: quello che il collega vuole lasciare
+      const sw = [...S.mese, ...S.board].find(x => x.id === id);
+      S.takeFor = id; S.takeNote = "";
+      S.takeTime = (sw && (sw.kind === "off" ? sw.from_time : sw.to_time)) || "09:00";
+      return disegna();
+    }
+    case "take-no": S.takeFor = null; S.takeNote = ""; return disegna();
+    case "take-ok": {
+      const nota = S.takeNote;
+      S.takeFor = null; S.takeNote = "";
+      return chiama("api_take", { p_id: id, p_my_time: S.takeTime, p_note: nota || null },
+                    "Fatto: ora avvisate UKG");
+    }
+    case "decline":   return chiama("api_decline", { p_id: id, p_on: true });
+    case "undecline": return chiama("api_decline", { p_id: id, p_on: false });
+    case "resolve": return chiama("api_resolve", { p_id: id }, "Segnato come risolto");
+    case "reopen":  return chiama("api_reopen",  { p_id: id }, "Richiesta riaperta");
+    case "release": return chiama("api_release", { p_id: id }, "Torna disponibile per tutti");
+    case "cancel":  return chiama("api_cancel",  { p_id: id }, "Richiesta annullata");
+    case "edit":    vaiA("cal"); return apriGiorno(b.dataset.d);
+    case "kind":    S.nuovoKind = b.dataset.k; return disegna();
+    case "offer": {
+      const d = b.dataset.d;
+      if (S.nuoveOfferte[d] !== undefined) delete S.nuoveOfferte[d];
+      else S.nuoveOfferte[d] = "";   // giorno offerto, orario ancora da dire: è facoltativo
+      return disegna();
+    }
+    case "create":  return chiama("api_create",
+      { p_date: S.sheetDate, p_kind: S.nuovoKind,
+        p_to: S.nuovoKind === "off" ? null : S.nuovoA, p_from: S.nuovoDa || null,
+        p_offers: S.nuovoKind === "off"
+          ? Object.entries(S.nuoveOfferte).map(([d, t]) => ({ d, t })) : [] },
+      "Richiesta pubblicata").then(chiudiSheet);
+    case "m-pin": {
+      const nuovo = prompt("Nuovo codice di 6 cifre per questa persona:");
+      if (!nuovo) return;
+      return chiama("api_member_update", { p_id: id, p_pin: nuovo.trim() }, "Codice reimpostato");
+    }
+    case "m-active": return chiama("api_member_update", { p_id: id, p_active: b.dataset.to === "1" }, "Aggiornato");
+    case "m-role":   return chiama("api_member_update", { p_id: id, p_role: b.dataset.to }, "Aggiornato");
+  }
+});
+
+// il commento vive nello stato, così ridisegnare la scheda non lo cancella
+document.addEventListener("input", e => {
+  if (e.target.closest("[data-note]")) S.takeNote = e.target.value;
+});
+
+// scelta di un orario su una qualsiasi striscia
+document.addEventListener("click", e => {
+  const c = e.target.closest(".tchip[data-time]"); if (!c) return;
+  const strip = c.closest(".strip"); if (!strip) return;
+  const quale = strip.dataset.strip, ora = c.dataset.time, left = strip.scrollLeft;
+  if (quale === "to")   S.nuovoA   = ora;
+  if (quale === "from") S.nuovoDa  = S.nuovoDa === ora ? "" : ora;   // ritocca per togliere
+  if (quale === "tk")   S.takeTime = ora;
+  // ritoccare l'orario scelto lo toglie: torna "nessuna preferenza"
+  if (quale.startsWith("of:")) {
+    const g = quale.slice(3);
+    S.nuoveOfferte[g] = S.nuoveOfferte[g] === ora ? "" : ora;
+  }
+  disegna();
+  const s2 = document.querySelector(`.strip[data-strip="${quale}"]`);
+  if (s2) s2.scrollLeft = left;   // non far saltare la striscia sotto il dito
+});
+
+/* ============================================================
+   NAVIGAZIONE
+   ============================================================ */
+function disegnaTab() {
+  const daAiutare = S.board.filter(x => x.status === "aperta" && x.author_id !== S.me.id && !x.declined_by_me).length;
+  const tabs = [
+    { id: "cal",   ic: "🗓️", label: "Calendario" },
+    { id: "board", ic: "🤝", label: "Bacheca", pip: daAiutare },
+    { id: "me",    ic: "👤", label: "Profilo" }
+  ];
+  $("#tabbar").innerHTML = tabs.map(t => `<button class="tab ${S.tab === t.id ? "on" : ""}" data-t="${t.id}">
+      <span class="ic">${t.ic}</span>${t.label}${t.pip ? `<span class="pip">${t.pip}</span>` : ""}</button>`).join("");
+  $("#tabbar").querySelectorAll("[data-t]").forEach(x => x.onclick = () => vaiA(x.dataset.t));
+}
+
+function vaiA(tab) {
+  S.tab = tab; S.takeFor = null;
+  $("#view-cal").classList.toggle("hide", tab !== "cal");
+  $("#view-board").classList.toggle("hide", tab !== "board");
+  $("#view-me").classList.toggle("hide", tab !== "me");
+  document.querySelector("header").style.display = tab === "cal" ? "" : "none";
+  window.scrollTo(0, 0);
+  disegna();
+}
+$("#me-chip").onclick = () => vaiA("me");
+
+/* ============================================================
+   AVVIO
+   ============================================================ */
+async function avvia() {
+  $("#auth").classList.add("hide"); $("#app").classList.remove("hide");
+  $("#me-chip").textContent = nome1(S.me.full_name);
+  // scorciatoia al portale, sotto al calendario: il cambio vero si fa lì
+  $("#ukg-box").innerHTML = UKG_URL
+    ? `<a class="b full g" style="margin-bottom:12px" href="${esc(UKG_URL)}"
+          target="_blank" rel="noopener">Apri UKG ↗</a>` : "";
+  S.tab = "cal"; vaiA("cal");
+  await ricarica();
+}
+
+(async function init() {
+  if (DEMO) $("#demo-banner").classList.remove("hide");
+  if (S.token) {
+    try {
+      const r = await api("api_session", { p_token: S.token });
+      S.me = r.member; return avvia();
+    } catch { localStorage.removeItem("cambioturni_token"); S.token = null; }
+  }
+  mostraStep("pick"); caricaPersone();
+})();
+</script>
+</body>
+</html>

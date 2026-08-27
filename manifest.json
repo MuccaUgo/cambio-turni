@@ -1,0 +1,14 @@
+{
+  "name": "Cambio turni",
+  "short_name": "Cambio turni",
+  "description": "Chiedi un cambio orario e trova il collega che ti copre",
+  "start_url": ".",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#0e8b7d",
+  "theme_color": "#0e8b7d",
+  "icons": [
+    { "src": "apple-touch-icon.png", "sizes": "180x180", "type": "image/png", "purpose": "any" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" }
+  ]
+}
