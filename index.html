@@ -336,6 +336,8 @@
   #toast.bad { background: rgba(188,49,69,.95); }
   .banner { font-size: .77rem; font-weight: 650; padding: 9px 14px; text-align: center; line-height: 1.45; color: var(--amber); background: var(--amber-bg); }
   .spin { text-align: center; padding: 40px 0; color: var(--ink2); font-size: .9rem; }
+  @keyframes gira { to { transform: rotate(360deg); } }
+  .gira { animation: gira .7s linear infinite; }
   @media (prefers-color-scheme: dark) {
     .b.pri, .tchip.on, .chip.on, .dchip.on { color: #06231f; }
   }
@@ -392,6 +394,7 @@
     <button class="nav-btn" id="prev-m">‹</button>
     <h2 id="month-title">—</h2>
     <button class="nav-btn" id="next-m">›</button>
+    <button class="nav-btn" id="refresh" title="Aggiorna">↻</button>
     <button class="me-chip" id="me-chip">—</button>
   </header>
 
@@ -710,6 +713,7 @@ const S = {
   cursor: (() => { const d = today(); return new Date(d.getFullYear(), d.getMonth(), 1); })(),
   mese: [],        // richieste del mese visibile
   board: [],       // richieste da oggi in poi
+  aggiornatoAlle: null,
   tab: "cal",
   sheetDate: null,
   takeFor: null,     // id della richiesta per cui sto scegliendo il mio orario
@@ -883,6 +887,14 @@ async function esci() {
 /* ============================================================
    DATI
    ============================================================ */
+// Aggiornamento manuale: gira l'icona finché i dati non sono tornati
+async function aggiorna(bottone) {
+  const b = bottone || $("#refresh");
+  if (b) b.classList.add("gira");
+  await ricarica();
+  if (b) b.classList.remove("gira");
+}
+
 async function ricarica() {
   const c = S.cursor;
   const da = ymd(weekStart(new Date(c.getFullYear(), c.getMonth(), 1)));
@@ -893,6 +905,7 @@ async function ricarica() {
       api("api_board", { p_token: S.token })
     ]);
     S.mese = mese || []; S.board = board || [];
+    S.aggiornatoAlle = new Date();
   } catch (e) {
     if (String(e.message).includes("NOT_AUTHENTICATED")) return esci();
     toast(messaggio(e), true);
@@ -1155,7 +1168,14 @@ function disegnaBacheca() {
     `<div class="sect-title">${titolo}</div>` +
     (lista.length ? lista.map(x => schedaSwap(x)).join("") : `<div class="card g"><div class="sub">${vuoto}</div></div>`);
 
+  const ora = S.aggiornatoAlle
+    ? `${pad(S.aggiornatoAlle.getHours())}:${pad(S.aggiornatoAlle.getMinutes())}` : "—";
+
   $("#view-board").innerHTML =
+    `<div class="row spread" style="margin:2px 2px 4px">
+       <span class="sub">Aggiornato alle ${ora}</span>
+       <button class="b sm" data-act="refresh">↻ Aggiorna</button>
+     </div>` +
     sezione(`Chi cerca un cambio${daAiutare.length ? " · " + daAiutare.length : ""}`, daAiutare,
             "Nessuno sta cercando un cambio in questo momento.") +
     sezione("Le mie richieste", mie, "Non hai richieste aperte. Tocca un giorno sul calendario per crearne una.") +
@@ -1185,6 +1205,9 @@ async function disegnaProfilo() {
       </div>
     </div>
     <div id="team-box"></div>
+    <button class="b full" style="margin-bottom:10px" id="do-reload">Ricarica l'app ↻</button>
+    <div class="sub" style="text-align:center;margin-bottom:14px">
+      Serve solo se ho pubblicato una versione nuova e non la vedi.</div>
     <button class="b full" id="do-logout">Esci</button>`;
 
   $("#do-pin").onclick = async () => {
@@ -1194,6 +1217,8 @@ async function disegnaProfilo() {
     } catch (e) { toast(messaggio(e), true); }
   };
   $("#do-logout").onclick = esci;
+  // ricarica saltando la cache, così arriva davvero la versione nuova
+  $("#do-reload").onclick = () => location.replace(location.pathname + "?v=" + Date.now());
 
   if (S.me.role !== "admin") return;
   let membri = [];
@@ -1231,6 +1256,7 @@ document.addEventListener("click", async e => {
 
   switch (act) {
     case "close":   return chiudiSheet();
+    case "refresh": return aggiorna(b);
     case "take": {
       // proponi già l'orario più probabile: quello che il collega vuole lasciare
       const sw = [...S.mese, ...S.board].find(x => x.id === id);
@@ -1331,6 +1357,15 @@ function vaiA(tab) {
   disegna();
 }
 $("#me-chip").onclick = () => vaiA("me");
+$("#refresh").onclick = () => aggiorna();
+
+// Riaprendo l'app dalla Home i dati potrebbero essere vecchi: si riscaricano
+// da soli, ma non più di una volta ogni 20 secondi.
+document.addEventListener("visibilitychange", () => {
+  if (document.hidden || !S.token || !S.me) return;
+  if (S.aggiornatoAlle && Date.now() - S.aggiornatoAlle.getTime() < 20000) return;
+  aggiorna();
+});
 
 /* ============================================================
    AVVIO
