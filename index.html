@@ -442,6 +442,10 @@ const SUPABASE_KEY = "sb_publishable_YNyk2558xsDM3jWkcvH-IA_Y3NYr46_";
 // nuova, così il cambio vero si fa senza cercarselo ogni volta.
 const UKG_URL = "https://applecomputer-sso.prd.mykronos.com";
 
+// Chiave pubblica delle notifiche: è fatta per stare qui, la gemella privata
+// vive solo sul server. Se un giorno la rigeneri, tutti devono riattivarle.
+const VAPID_PUBLIC = "BEr5IU2Xpsg0_9qth3erJmXvtxpJszyvi-hkMYEdQiTifxaCQ8iWYqfYgD9hBwGUtrmGr45YDnw8PmVrVac4dFU";
+
 const DEMO = SUPABASE_URL.startsWith("INCOLLA") || new URLSearchParams(location.search).has("demo");
 const db = DEMO ? null : createClient(SUPABASE_URL, SUPABASE_KEY);
 
@@ -702,6 +706,75 @@ async function api(fn, args = {}) {
   const { data, error } = await db.rpc(fn, args);
   if (error) throw new Error(error.message || "Errore di rete");
   return data;
+}
+
+/* ============================================================
+   NOTIFICHE
+   ============================================================ */
+const inHome = () => window.matchMedia("(display-mode: standalone)").matches || navigator.standalone === true;
+const iOS = () => /iPhone|iPad|iPod/.test(navigator.userAgent);
+const pushDisponibile = () => "serviceWorker" in navigator && "PushManager" in window && "Notification" in window;
+
+function b64ToBytes(b64) {
+  const s = (b64 + "=".repeat((4 - b64.length % 4) % 4)).replace(/-/g, "+").replace(/_/g, "/");
+  return Uint8Array.from([...atob(s)].map(c => c.charCodeAt(0)));
+}
+
+async function iscrizionePush() {
+  if (!pushDisponibile()) return null;
+  const reg = await navigator.serviceWorker.getRegistration();
+  return reg ? await reg.pushManager.getSubscription() : null;
+}
+
+async function attivaNotifiche() {
+  if (DEMO) { toast("In modalità demo le notifiche non partono", true); return; }
+  if (!pushDisponibile()) { toast("Questo browser non le supporta", true); return; }
+  // su iPhone Apple le concede solo alle app aggiunte alla schermata Home
+  if (iOS() && !inHome()) {
+    toast("Prima aggiungi l'app alla schermata Home", true); return;
+  }
+  try {
+    const reg = await navigator.serviceWorker.register("sw.js");
+    await navigator.serviceWorker.ready;
+    const permesso = await Notification.requestPermission();
+    if (permesso !== "granted") { toast("Permesso negato", true); return; }
+
+    const sub = await reg.pushManager.subscribe({
+      userVisibleOnly: true,
+      applicationServerKey: b64ToBytes(VAPID_PUBLIC),
+    });
+    const j = sub.toJSON();
+    await api("api_push_save", {
+      p_token: S.token, p_endpoint: j.endpoint,
+      p_p256dh: j.keys.p256dh, p_auth: j.keys.auth,
+    });
+    toast("Notifiche attive");
+  } catch (e) {
+    toast("Non è riuscito: " + (e.message || e), true);
+  }
+  disegnaProfilo();
+}
+
+async function disattivaNotifiche() {
+  try {
+    const sub = await iscrizionePush();
+    if (sub) {
+      await api("api_push_delete", { p_token: S.token, p_endpoint: sub.endpoint });
+      await sub.unsubscribe();
+    }
+    toast("Notifiche disattivate");
+  } catch (e) { toast(messaggio(e), true); }
+  disegnaProfilo();
+}
+
+// Avvisa chi di dovere. Non blocca mai l'azione: se fallisce, pazienza.
+function avvisa(swapId, evento) {
+  if (DEMO || !swapId) return;
+  fetch(`${SUPABASE_URL}/functions/v1/notifica`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ token: S.token, swap_id: swapId, evento }),
+  }).catch(() => {});
 }
 
 /* ============================================================
@@ -1204,6 +1277,7 @@ async function disegnaProfilo() {
         <button class="b pri full" id="do-pin">Aggiorna codice</button>
       </div>
     </div>
+    <div class="card g" id="box-notifiche"><div class="sub">Controllo le notifiche…</div></div>
     <div id="team-box"></div>
     <button class="b full" style="margin-bottom:10px" id="do-reload">Ricarica l'app ↻</button>
     <div class="sub" style="text-align:center;margin-bottom:14px">
@@ -1220,6 +1294,64 @@ async function disegnaProfilo() {
   // ricarica saltando la cache, così arriva davvero la versione nuova
   $("#do-reload").onclick = () => location.replace(location.pathname + "?v=" + Date.now());
 
+  disegnaNotifiche();
+
+  if (S.me.role === "admin") await disegnaTeam();
+}
+
+async function disegnaNotifiche() {
+  const box = $("#box-notifiche");
+  if (!box) return;
+  const titolo = `<h3>Notifiche</h3>`;
+  const nota = t => `<div class="sub" style="margin-top:4px">${t}</div>`;
+
+  if (DEMO) {
+    box.innerHTML = titolo + nota("In modalità demo non partono: servono i dati veri.");
+    return;
+  }
+  if (!pushDisponibile()) {
+    box.innerHTML = titolo + nota("Questo browser non le supporta. Su iPhone servono iOS 16.4 o più recente.");
+    return;
+  }
+  if (iOS() && !inHome()) {
+    box.innerHTML = titolo +
+      nota("Su iPhone funzionano solo con l'app aggiunta alla schermata Home: tocca <b>Condividi → Aggiungi a Home</b>, riapri da lì e torna qui.");
+    return;
+  }
+
+  const sub = await iscrizionePush().catch(() => null);
+  const negato = Notification.permission === "denied";
+
+  if (negato && !sub) {
+    box.innerHTML = titolo +
+      nota("Le hai negate. Si riattivano dalle impostazioni del telefono, alla voce di questa app.");
+    return;
+  }
+  box.innerHTML = titolo +
+    nota(sub
+      ? "Attive su questo dispositivo. Ti avviso quando qualcuno cerca un cambio, quando qualcuno prende la tua richiesta e quando viene risolta."
+      : "Spente. Attivandole ti avviso quando qualcuno cerca un cambio o prende la tua richiesta.") +
+    `<button class="b ${sub ? "" : "pri"} full" style="margin-top:11px" id="btn-notifiche">
+       ${sub ? "Disattiva su questo dispositivo" : "Attiva le notifiche"}</button>` +
+    (sub ? `<button class="b full" style="margin-top:8px" id="btn-prova">Mandami una notifica di prova</button>` : "");
+
+  $("#btn-notifiche").onclick = () => (sub ? disattivaNotifiche() : attivaNotifiche());
+  const prova = $("#btn-prova");
+  if (prova) prova.onclick = async () => {
+    prova.disabled = true;
+    try {
+      const r = await fetch(`${SUPABASE_URL}/functions/v1/notifica`, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ token: S.token, evento: "prova" }),
+      });
+      const j = await r.json();
+      toast(j.inviate ? "Inviata: dovrebbe arrivarti ora" : (j.motivo || j.error || "Non inviata"), !j.inviate);
+    } catch (e) { toast("Non è riuscito: " + e.message, true); }
+    prova.disabled = false;
+  };
+}
+
+async function disegnaTeam() {
   if (S.me.role !== "admin") return;
   let membri = [];
   try { membri = await api("api_members", { p_token: S.token }); } catch { return; }
@@ -1247,9 +1379,14 @@ document.addEventListener("click", async e => {
   const b = e.target.closest("[data-act]");
   if (!b || b.tagName === "A") return;
   const { act, id } = b.dataset;
-  const chiama = async (fn, args, msg) => {
+  const chiama = async (fn, args, msg, evento) => {
     b.disabled = true;
-    try { await api(fn, { p_token: S.token, ...args }); if (msg) toast(msg); await ricarica(); }
+    try {
+      const res = await api(fn, { p_token: S.token, ...args });
+      if (evento) avvisa(res?.id || args.p_id, evento);   // api_create restituisce l'id
+      if (msg) toast(msg);
+      await ricarica();
+    }
     catch (err) { toast(messaggio(err), true); }
     finally { b.disabled = false; }
   };
@@ -1269,14 +1406,14 @@ document.addEventListener("click", async e => {
       const nota = S.takeNote;
       S.takeFor = null; S.takeNote = "";
       return chiama("api_take", { p_id: id, p_my_time: S.takeTime, p_note: nota || null },
-                    "Fatto: ora avvisate UKG");
+                    "Fatto: ora avvisate UKG", "presa");
     }
     case "decline":   return chiama("api_decline", { p_id: id, p_on: true });
     case "undecline": return chiama("api_decline", { p_id: id, p_on: false });
-    case "resolve": return chiama("api_resolve", { p_id: id }, "Segnato come risolto");
+    case "resolve": return chiama("api_resolve", { p_id: id }, "Segnato come risolto", "risolta");
     case "reopen":  return chiama("api_reopen",  { p_id: id }, "Richiesta riaperta");
-    case "release": return chiama("api_release", { p_id: id }, "Torna disponibile per tutti");
-    case "cancel":  return chiama("api_cancel",  { p_id: id }, "Richiesta annullata");
+    case "release": return chiama("api_release", { p_id: id }, "Torna disponibile per tutti", "release");
+    case "cancel":  return chiama("api_cancel",  { p_id: id }, "Richiesta annullata", "annullata");
     case "edit":    vaiA("cal"); return apriGiorno(b.dataset.d);
     case "kind":    S.nuovoKind = b.dataset.k; return disegna();
     case "job": {
@@ -1298,7 +1435,7 @@ document.addEventListener("click", async e => {
         p_to: S.nuovoKind === "off" ? null : S.nuovoA, p_from: S.nuovoDa || null,
         p_offers: S.nuovoKind === "off"
           ? Object.entries(S.nuoveOfferte).map(([d, t]) => ({ d, t })) : [] },
-      "Richiesta pubblicata").then(chiudiSheet);
+      "Richiesta pubblicata", "aperta").then(chiudiSheet);
     case "m-pin": {
       const nuovo = prompt("Nuovo codice di 6 cifre per questa persona:");
       if (!nuovo) return;
