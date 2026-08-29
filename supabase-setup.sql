@@ -138,12 +138,12 @@ revoke all on sequence public.login_attempts_id_seq from anon, authenticated;
 
 -- La settimana va da SABATO a VENERDÌ (serve al calendario)
 create or replace function public.week_start(d date)
-returns date language sql immutable as $$
+returns date language sql immutable set search_path = pg_catalog as $$
   select d - ((extract(dow from d)::int + 1) % 7)
 $$;
 
 create or replace function public.member_json(m public.members)
-returns json language sql immutable as $$
+returns json language sql immutable set search_path = pg_catalog as $$
   select json_build_object(
     'id', m.id, 'full_name', m.full_name, 'job', m.job,
     'role', m.role, 'active', m.active)
@@ -583,12 +583,17 @@ end $$;
 -- ------------------------------------------------------------
 -- Chi può chiamare cosa
 -- ------------------------------------------------------------
-revoke all on function public.new_session(uuid)                    from public;
-revoke all on function public.auth_member(text)                    from public;
-revoke all on function public.auth_admin(text)                     from public;
-revoke all on function public.member_json(public.members)          from public;
-revoke all on function public.swaps_json(uuid,date,date)           from public;
-revoke all on function public.swap_for_update(uuid,uuid,boolean)   from public;
+-- ATTENZIONE: qui vanno nominati anche anon e authenticated. Supabase concede
+-- EXECUTE a quei due ruoli in modo esplicito su ogni nuova funzione, quindi
+-- "revoke from public" da solo NON li toglie e le funzioni interne
+-- resterebbero chiamabili da /rest/v1/rpc/... con la sola chiave pubblica.
+-- new_session è la più pericolosa: dato un id restituisce un token valido.
+revoke all on function public.new_session(uuid)                  from public, anon, authenticated;
+revoke all on function public.auth_member(text)                  from public, anon, authenticated;
+revoke all on function public.auth_admin(text)                   from public, anon, authenticated;
+revoke all on function public.member_json(public.members)        from public, anon, authenticated;
+revoke all on function public.swaps_json(uuid,date,date)         from public, anon, authenticated;
+revoke all on function public.swap_for_update(uuid,uuid,boolean) from public, anon, authenticated;
 
 grant execute on function
   public.api_people(),

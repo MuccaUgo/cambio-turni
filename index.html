@@ -422,8 +422,8 @@ import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js
    (Project Settings → API). Finché restano così, l'app parte in
    modalità demo con dati finti salvati solo su questo telefono.
    ============================================================ */
-const SUPABASE_URL = "INCOLLA_QUI_URL";
-const SUPABASE_KEY = "INCOLLA_QUI_CHIAVE_PUBBLICA";
+const SUPABASE_URL = "https://mhocwnewwjxmcrynyrrz.supabase.co";
+const SUPABASE_KEY = "sb_publishable_YNyk2558xsDM3jWkcvH-IA_Y3NYr46_";
 
 // L'indirizzo del portale UKG: il pulsante "Apri UKG" lo apre in una scheda
 // nuova, così il cambio vero si fa senza cercarselo ogni volta.
@@ -779,6 +779,9 @@ function mostraStep(step) {
   $("#v-name").classList.toggle("hide", step !== "name");
   $("#v-pin").classList.toggle("hide", step !== "pin");
   if (step === "pick") { $("#q-person").value = ""; disegnaPersone(); }
+  // anche quando ci si arriva senza passare da "registrami": succede al primo
+  // utente in assoluto, che salta la scelta del nome perché l'elenco è vuoto
+  if (step === "name") disegnaSceltaRuolo();
 }
 function disegnaPin() {
   $("#pin-dots").innerHTML = Array.from({ length: 6 }, (_, i) => `<div class="dot ${i < pin.length ? "on" : ""}"></div>`).join("");
@@ -842,7 +845,7 @@ $("#people-list").addEventListener("click", e => {
   scelto = persone.find(p => String(p.id) === b.dataset.id);
   apriPin("login", "Ciao " + nome1(scelto.full_name), "Inserisci il tuo codice di 6 cifre");
 });
-$("#go-register").onclick = () => { $("#name-err").textContent = ""; disegnaSceltaRuolo(); mostraStep("name"); };
+$("#go-register").onclick = () => { $("#name-err").textContent = ""; mostraStep("name"); };
 $("#back-pick").onclick = () => mostraStep("pick");
 $("#pin-back").onclick = () => mostraStep(modoPin === "login" ? "pick" : "name");
 $("#name-next").onclick = () => {
