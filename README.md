@@ -82,6 +82,17 @@ altro dalla scheda Profilo.
 
 ---
 
+## Stato
+
+**L'app è in funzione** su https://muccaugo.github.io/cambio-turni/, collegata
+al progetto Supabase `CambioTurni` (`mhocwnewwjxmcrynyrrz`). Le istruzioni qui
+sotto servono solo per rifarla da zero o per ricostruirla altrove.
+
+Se pubblico una versione nuova e non la vedi, in **Profilo** c'è *Ricarica
+l'app*: salta la cache. Per i soli dati bastano il tasto ↻ nell'intestazione
+del calendario o *Aggiorna* in bacheca — e comunque si riscaricano da soli
+ogni volta che riapri l'app.
+
 ## Installazione
 
 ### 1. Crea il database
