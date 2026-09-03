@@ -80,6 +80,12 @@ niente, può solo reimpostare il codice di chi l'ha dimenticato e togliere
 dall'elenco chi non lavora più con voi. Può passare questo compito a qualcun
 altro dalla scheda Profilo.
 
+Per far entrare qualcuno di nuovo non serve dettargli l'indirizzo: in
+**Profilo** c'è il **codice QR** dell'app. Glielo fai inquadrare con la
+fotocamera (toccandolo diventa grande, comodo da mostrare) oppure usi
+**Condividi** e **Copia link**. Sempre da Profilo si cambia il proprio ruolo,
+scegliendolo dal menu a tendina.
+
 ---
 
 ## Stato
@@ -143,9 +149,10 @@ python3 -m http.server 4190 --directory cambio-turni
 
 ### 4. Primo giro
 
-Registrati tu per primo, poi manda il link agli altri. Dì al team di
-aggiungere l'app alla schermata Home dell'iPhone (**Condividi → Aggiungi a
-Home**): si apre a tutto schermo come un'app vera.
+Registrati tu per primo, poi passa il link agli altri: in **Profilo** trovi il
+codice QR da far inquadrare e i pulsanti per condividerlo o copiarlo. Dì al
+team di aggiungere l'app alla schermata Home dell'iPhone (**Condividi →
+Aggiungi a Home**): si apre a tutto schermo come un'app vera.
 
 ---
 
@@ -188,6 +195,6 @@ pazienza. Chiunque abbia il link e un nome libero può registrarsi.
 
 | File | Cosa contiene |
 |---|---|
-| `index.html` | tutta l'app: interfaccia, logica, modalità demo |
+| `index.html` | tutta l'app: interfaccia, logica, generatore di QR, modalità demo |
 | `supabase-setup.sql` | tabelle, funzioni `api_*`, permessi |
 | `manifest.json`, `icon*.png`, `icon.svg` | icona e installazione sulla Home |
