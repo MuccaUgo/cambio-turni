@@ -311,6 +311,44 @@
   .dchip.on small { opacity: .9; }
   .dchip:disabled { opacity: .3; }
 
+  /* ---------- profilo ---------- */
+  .hero { display: flex; align-items: center; gap: 13px; }
+  .hero .chi { min-width: 0; }
+  .hero h3 { font-size: 1.18rem; line-height: 1.25; }
+  .avatar.big { width: 54px; height: 54px; border-radius: 19px; font-size: 1.02rem; }
+  .sep { height: 1px; background: var(--hair); margin: 15px 0; }
+  .chiusura { padding: 13px; }
+
+  /* il menu a tendina: freccia disegnata a parte, così segue il tema */
+  .sel { position: relative; }
+  .sel select {
+    font-family: inherit; font-size: 16px; font-weight: 650; color: var(--ink);
+    background: var(--glass3); border: 1px solid var(--edge);
+    border-radius: 14px; padding: 12px 38px 12px 13px; width: 100%;
+    -webkit-appearance: none; appearance: none;
+  }
+  .sel::after {
+    content: ""; position: absolute; right: 17px; top: 50%; width: 8px; height: 8px;
+    border-right: 2px solid var(--ink2); border-bottom: 2px solid var(--ink2);
+    transform: translateY(-70%) rotate(45deg); pointer-events: none;
+  }
+
+  /* il QR sta sempre scuro su bianco: le fotocamere non leggono l'inverso */
+  .qr-plate {
+    display: block; width: fit-content; max-width: 100%; margin: 13px auto 10px;
+    padding: 10px; border-radius: 20px; background: #fff; line-height: 0;
+    box-shadow: 0 10px 26px rgba(10,30,35,.18);
+  }
+  .qr-plate:active { transform: scale(.98); }
+  .qr-plate svg { width: 194px; height: 194px; max-width: 58vw; display: block; }
+  .qr-plate.grande { margin: 16px auto 12px; padding: 13px; }
+  .qr-plate.grande svg { width: 290px; height: 290px; max-width: 74vw; }
+  .qr-link {
+    font-size: .78rem; color: var(--ink2); text-align: center; word-break: break-all;
+    background: var(--glass3); border: 1px solid var(--edge);
+    border-radius: 12px; padding: 8px 11px; margin-bottom: 11px;
+  }
+
   /* ---------- pannello ---------- */
   .scrim { position: fixed; inset: 0; background: rgba(5,20,22,.42); z-index: 40; opacity: 0; pointer-events: none; transition: opacity .22s; -webkit-backdrop-filter: blur(2px); backdrop-filter: blur(2px); }
   .scrim.on { opacity: 1; pointer-events: auto; }
@@ -1257,32 +1295,310 @@ function disegnaBacheca() {
 }
 
 /* ============================================================
+   CODICE QR — scritto qui dentro, senza librerie da scaricare
+   Modalità byte, correzione M, versioni 1-10 (fino a 216 byte):
+   più che abbastanza per un indirizzo.
+   ============================================================ */
+const QR_TAB = [            // per versione: [codeword totali, correzione per blocco, blocchi]
+  [26,10,1],[44,16,1],[70,26,1],[100,18,2],[134,24,2],
+  [172,16,4],[196,18,4],[242,22,4],[292,22,5],[346,26,5]];
+const QR_ALLIN = [[],[6,18],[6,22],[6,26],[6,30],[6,34],[6,22,38],[6,24,42],[6,26,46],[6,28,50]];
+
+// tavole dei logaritmi nel campo di Galois: servono a moltiplicare in fretta
+const GEXP = new Uint8Array(512), GLOG = new Uint8Array(256);
+for (let i = 0, x = 1; i < 255; i++) { GEXP[i] = x; GLOG[x] = i; x <<= 1; if (x & 256) x ^= 0x11d; }
+for (let i = 255; i < 512; i++) GEXP[i] = GEXP[i - 255];
+const gmul = (a, b) => (a && b) ? GEXP[GLOG[a] + GLOG[b]] : 0;
+
+// Reed-Solomon: i codeword di correzione di un blocco
+function qrEcc(dati, n) {
+  let gen = [1];                                       // polinomio generatore di grado n
+  for (let i = 0; i < n; i++) {
+    const next = new Array(gen.length + 1).fill(0);
+    gen.forEach((c, j) => { next[j] ^= c; next[j + 1] ^= gmul(c, GEXP[i]); });
+    gen = next;
+  }
+  const res = new Uint8Array(n);
+  for (const b of dati) {
+    const f = b ^ res[0];
+    res.copyWithin(0, 1); res[n - 1] = 0;
+    if (f) for (let i = 0; i < n; i++) res[i] ^= gmul(gen[i + 1], f);
+  }
+  return res;
+}
+
+// Le otto maschere della norma e i quattro criteri per sceglierne una:
+// vince quella con il punteggio più basso, cioè il disegno meno ingannevole.
+const QR_MASCHERE = [
+  (r, c) => (r + c) % 2 === 0,   (r, c) => r % 2 === 0,
+  (r, c) => c % 3 === 0,         (r, c) => (r + c) % 3 === 0,
+  (r, c) => (((r / 2) | 0) + ((c / 3) | 0)) % 2 === 0,
+  (r, c) => (r * c) % 2 + (r * c) % 3 === 0,
+  (r, c) => ((r * c) % 2 + (r * c) % 3) % 2 === 0,
+  (r, c) => ((r + c) % 2 + (r * c) % 3) % 2 === 0];
+
+function qrPenalita(m, n) {
+  let p = 0, scuri = 0;
+  const lungoLeFile = leggi => {
+    for (let a = 0; a < n; a++) {
+      const storia = [];
+      let run = 1, prec = leggi(a, 0);
+      for (let b = 1; b <= n; b++) {
+        const val = b < n ? leggi(a, b) : null;
+        if (val === prec) { run++; continue; }
+        if (run >= 5) p += run - 2;                    // 1: file lunghe dello stesso colore
+        storia.push([prec, run]); run = 1; prec = val;
+      }
+      for (let i = 0; i + 4 < storia.length; i++) {    // 3: il finto occhio 1:1:3:1:1
+        const [c0, r0] = storia[i];
+        if (!(c0 && r0 === 1 && storia[i + 1][1] === 1 && storia[i + 2][1] === 3
+              && storia[i + 3][1] === 1 && storia[i + 4][1] === 1)) continue;
+        if ((storia[i - 1] && storia[i - 1][1] >= 4) || (storia[i + 5] && storia[i + 5][1] >= 4)) p += 40;
+      }
+    }
+  };
+  lungoLeFile((a, b) => m[a][b]);
+  lungoLeFile((a, b) => m[b][a]);
+  for (let r = 0; r + 1 < n; r++) for (let c = 0; c + 1 < n; c++)   // 2: quadrati 2×2 pieni
+    if (m[r][c] === m[r][c + 1] && m[r][c] === m[r + 1][c] && m[r][c] === m[r + 1][c + 1]) p += 3;
+  for (let r = 0; r < n; r++) for (let c = 0; c < n; c++) if (m[r][c]) scuri++;
+  p += Math.floor(Math.abs(scuri * 100 / (n * n) - 50) / 5) * 10;    // 4: troppo scuro o troppo chiaro
+  return p;
+}
+
+// le cifre di controllo BCH che proteggono formato e versione
+const qrBch = (val, gen, grado) => {
+  let d = val << grado;
+  for (let i = 17; i >= grado; i--) if (d >> i & 1) d ^= gen << (i - grado);
+  return (val << grado) | d;
+};
+
+// Restituisce la matrice di moduli (true = scuro) per il testo dato.
+function qrMatrice(testo) {
+  const byte = [...new TextEncoder().encode(testo)];
+  const v = QR_TAB.findIndex(([tot, ec, bl], i) =>
+    byte.length <= tot - ec * bl - (i >= 9 ? 3 : 2)) + 1;   // 2 o 3 byte se ne vanno in intestazione
+  if (!v) throw new Error("testo troppo lungo per un QR");
+  const [tot, ecLen, blocchi] = QR_TAB[v - 1];
+  const datiLen = tot - ecLen * blocchi;
+
+  /* ---- i bit: modo byte (0100), lunghezza, contenuto, riempimento ---- */
+  const bits = [];
+  const push = (val, n) => { for (let i = n - 1; i >= 0; i--) bits.push((val >> i) & 1); };
+  push(4, 4); push(byte.length, v >= 10 ? 16 : 8); byte.forEach(b => push(b, 8));
+  for (let i = 0; i < 4 && bits.length < datiLen * 8; i++) bits.push(0);
+  while (bits.length % 8) bits.push(0);
+  const dati = [];
+  for (let i = 0; i < bits.length; i += 8) dati.push(parseInt(bits.slice(i, i + 8).join(""), 2));
+  for (let i = 0; dati.length < datiLen; i++) dati.push(i % 2 ? 0x11 : 0xec);
+
+  /* ---- blocchi, correzione, interlacciamento ---- */
+  const corti = blocchi - (datiLen % blocchi), lung = Math.floor(datiLen / blocchi);
+  const gruppi = [], ecc = [];
+  for (let i = 0, p = 0; i < blocchi; i++) {
+    const n = lung + (i < corti ? 0 : 1);
+    gruppi.push(dati.slice(p, p + n)); ecc.push(qrEcc(dati.slice(p, p + n), ecLen)); p += n;
+  }
+  const flusso = [];
+  for (let i = 0; i <= lung; i++) gruppi.forEach(g => { if (i < g.length) flusso.push(g[i]); });
+  for (let i = 0; i < ecLen; i++) ecc.forEach(e => flusso.push(e[i]));
+
+  /* ---- il disegno: prima i motivi fissi, poi i dati a serpentina ---- */
+  const n = v * 4 + 17;
+  const m = Array.from({ length: n }, () => new Array(n).fill(null));   // null = casella ancora libera
+  const box = (r, c, h, w, val) => { for (let i = 0; i < h; i++) for (let j = 0; j < w; j++)
+    if (r + i >= 0 && r + i < n && c + j >= 0 && c + j < n) m[r + i][c + j] = val; };
+  for (const [r, c] of [[0, 0], [0, n - 7], [n - 7, 0]]) {              // i tre occhi, col separatore
+    box(r - 1, c - 1, 9, 9, false);
+    box(r, c, 7, 7, true); box(r + 1, c + 1, 5, 5, false); box(r + 2, c + 2, 3, 3, true);
+  }
+  for (const a of QR_ALLIN[v - 1]) for (const b of QR_ALLIN[v - 1]) {   // motivi di allineamento
+    if (m[a][b] !== null) continue;                                    // quelli sotto gli occhi non si mettono
+    box(a - 2, b - 2, 5, 5, true); box(a - 1, b - 1, 3, 3, false); m[a][b] = true;
+  }
+  box(0, 8, 9, 1, false); box(8, 0, 1, 9, false);                       // posto per il formato
+  box(n - 8, 8, 8, 1, false); box(8, n - 8, 1, 8, false);
+  for (let i = 8; i < n - 8; i++) m[6][i] = m[i][6] = i % 2 === 0;      // file di sincronismo
+  m[n - 8][8] = true;                                                   // il modulo sempre scuro
+  if (v >= 7) { box(n - 11, 0, 3, 6, false); box(0, n - 11, 6, 3, false); }
+
+  const posti = [];
+  for (let c = n - 1, su = true; c > 0; c -= 2) {
+    if (c === 6) c--;                                                   // la colonna 6 è di sincronismo
+    for (let k = 0; k < n; k++) {
+      const r = su ? n - 1 - k : k;
+      for (const cc of [c, c - 1]) if (m[r][cc] === null) posti.push([r, cc]);
+    }
+    su = !su;
+  }
+  posti.forEach(([r, c], i) => {
+    m[r][c] = (i >> 3) < flusso.length && ((flusso[i >> 3] >> (7 - (i & 7))) & 1) === 1;
+  });
+  return { m, n, v, liberi: new Set(posti.map(([r, c]) => r * n + c)) };
+}
+
+function qr(testo) {
+  const { m, n, v, liberi } = qrMatrice(testo);
+  let scelta = null;
+  for (let k = 0; k < 8; k++) {
+    const g = m.map((riga, r) => riga.map((val, c) =>
+      liberi.has(r * n + c) && QR_MASCHERE[k](r, c) ? !val : val));
+    const fmt = qrBch(k, 0x537, 10) ^ 0x5412;        // correzione M = 00, poi la maschera
+    for (let i = 0; i < 15; i++) {
+      const b = (fmt >> i & 1) === 1;
+      if (i < 6) g[i][8] = b; else if (i < 8) g[i + 1][8] = b;
+      else if (i === 8) g[8][7] = b; else g[8][14 - i] = b;
+      if (i < 8) g[8][n - 1 - i] = b; else g[n - 15 + i][8] = b;
+    }
+    g[n - 8][8] = true;
+    if (v >= 7) {                                    // dalla 7 in poi la versione è scritta due volte
+      const vi = qrBch(v, 0x1f25, 12);
+      for (let i = 0; i < 18; i++) {
+        const b = (vi >> i & 1) === 1;
+        g[Math.floor(i / 3)][n - 11 + i % 3] = b;
+        g[n - 11 + i % 3][Math.floor(i / 3)] = b;
+      }
+    }
+    const p = qrPenalita(g, n);
+    if (!scelta || p < scelta.p) scelta = { p, g };
+  }
+  return scelta.g;
+}
+
+// Il QR come SVG: nessun canvas, resta nitido a qualsiasi dimensione.
+// Sempre scuro su bianco anche di notte, se no le fotocamere non lo leggono.
+function qrSvg(testo) {
+  let m;
+  try { m = qr(testo); } catch { return ""; }      // indirizzo troppo lungo: si tira avanti senza
+  const n = m.length, bordo = 2, lato = n + bordo * 2;
+  let d = "";
+  for (let r = 0; r < n; r++) for (let c = 0; c < n; c++)
+    if (m[r][c]) d += `M${c + bordo} ${r + bordo}h1v1h-1z`;
+  return `<svg viewBox="0 0 ${lato} ${lato}" xmlns="http://www.w3.org/2000/svg" shape-rendering="crispEdges" aria-hidden="true">
+      <rect width="${lato}" height="${lato}" fill="#fff"/><path d="${d}" fill="#0f2022"/></svg>`;
+}
+
+// L'indirizzo da condividere: quello dell'app, senza ?demo=1 e senza index.html
+const LINK_APP = location.origin + location.pathname.replace(/index\.html?$/i, "");
+
+async function copiaLink() {
+  try { await navigator.clipboard.writeText(LINK_APP); toast("Link copiato"); return; }
+  catch {}
+  // Safari vecchi: il fallback passa da un campo selezionato
+  const i = document.createElement("input");
+  i.value = LINK_APP;
+  i.style.cssText = "position:fixed;opacity:0;top:0";
+  document.body.appendChild(i); i.select();
+  try { document.execCommand("copy"); toast("Link copiato"); }
+  catch { toast("Copialo a mano dalla barra dell'indirizzo", true); }
+  i.remove();
+}
+
+async function condividiApp() {
+  if (!navigator.share) return copiaLink();
+  try {
+    await navigator.share({
+      title: "Cambio turni",
+      text: "Cambio turni: qui ci si mette d'accordo su chi copre chi.",
+      url: LINK_APP,
+    });
+  } catch {}          // se annulla il foglio di condivisione non è un errore
+}
+
+function apriQrGrande() {
+  const codice = qrSvg(LINK_APP);
+  $("#sheet-body").innerHTML = `
+    <h3>Invita i colleghi</h3>
+    <div class="sub" style="margin-top:5px">Fai inquadrare il codice con la fotocamera: si apre l'app.</div>
+    ${codice ? `<div class="qr-plate grande">${codice}</div>` : ""}
+    <div class="qr-link">${esc(LINK_APP)}</div>
+    <button class="b full" data-act="close" style="margin-top:11px">Chiudi</button>`;
+  $("#scrim").classList.add("on"); $("#sheet").classList.add("on");
+}
+
+/* ============================================================
    PROFILO
    ============================================================ */
 async function disegnaProfilo() {
   const v = $("#view-me");
+  const ruoloIgnoto = !RUOLI.includes(S.me.job);
+  const codice = qrSvg(LINK_APP);
   v.innerHTML = `
-    <div class="card g">
-      <h3>${esc(S.me.full_name)}</h3>
-      <div class="sub">${DEMO ? "Modalità demo · " : ""}Il tuo codice serve solo a farti riconoscere dai colleghi.</div>
-      <div class="sub" style="margin:11px 0 6px">Il tuo ruolo</div>
-      <div class="chips" id="mio-ruolo">${RUOLI.map(r =>
-        `<button class="chip ${S.me.job === r ? "on" : ""}" data-act="job" data-r="${esc(r)}">${esc(r)}</button>`).join("")}</div>
-    </div>
-    <div class="card g">
-      <h3>Cambia il tuo codice</h3>
-      <div class="stack" style="margin-top:10px">
-        <input type="tel" inputmode="numeric" maxlength="6" id="pin-old" placeholder="Codice attuale">
-        <input type="tel" inputmode="numeric" maxlength="6" id="pin-new" placeholder="Nuovo codice (6 cifre)">
-        <button class="b pri full" id="do-pin">Aggiorna codice</button>
+    <div class="card g hero">
+      <div class="avatar big">${esc(iniziali(S.me.full_name))}</div>
+      <div class="chi">
+        <h3>${esc(S.me.full_name)}</h3>
+        <div class="row" style="gap:5px;margin-top:5px">
+          <span class="pill s-presa" id="hero-ruolo">${esc(S.me.job || "senza ruolo")}</span>
+          ${S.me.role === "admin" ? `<span class="pill s-aperta">Gestisce l'elenco</span>` : ""}
+          ${DEMO ? `<span class="pill s-risolta">Demo</span>` : ""}
+        </div>
       </div>
     </div>
+
+    <div class="sect-title">Invita i colleghi</div>
+    <div class="card g">
+      <div class="sub">${codice ? "Fagli inquadrare il codice con la fotocamera" : "Mandagli il link"}:
+      si apre l'app, poi scelgono il loro nome e un codice di 6 cifre.</div>
+      ${codice ? `<button class="qr-plate" id="do-qr" title="Ingrandisci il codice">${codice}</button>` : ""}
+      <div class="qr-link">${esc(LINK_APP)}</div>
+      <div class="row" style="gap:8px;flex-wrap:nowrap">
+        <button class="b pri" style="flex:1" id="do-share">Condividi</button>
+        <button class="b" style="flex:1" id="do-copy">Copia link</button>
+      </div>
+      <div class="sub" style="text-align:center;margin-top:9px">Dopo, digli di aggiungerla alla schermata Home:
+      <b>Condividi → Aggiungi a Home</b>.</div>
+    </div>
+
+    <div class="sect-title">Il tuo profilo</div>
+    <div class="card g">
+      <div class="field">
+        <label for="mio-ruolo">Il tuo ruolo</label>
+        <div class="sel"><select id="mio-ruolo">
+          ${ruoloIgnoto ? `<option value="" selected>Scegli il tuo ruolo</option>` : ""}
+          ${RUOLI.map(r => `<option value="${esc(r)}" ${S.me.job === r ? "selected" : ""}>${esc(r)}</option>`).join("")}
+        </select></div>
+        <div class="sub" style="margin-top:6px">Serve solo ai colleghi per capire al volo chi può coprirti.</div>
+      </div>
+      <div class="sep"></div>
+      <div class="field">
+        <label for="pin-old">Cambia il tuo codice</label>
+        <div class="stack">
+          <input type="tel" inputmode="numeric" maxlength="6" id="pin-old" placeholder="Codice attuale">
+          <input type="tel" inputmode="numeric" maxlength="6" id="pin-new" placeholder="Nuovo codice (6 cifre)">
+          <button class="b pri full" id="do-pin">Aggiorna codice</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="sect-title">Notifiche</div>
     <div class="card g" id="box-notifiche"><div class="sub">Controllo le notifiche…</div></div>
+
     <div id="team-box"></div>
-    <button class="b full" style="margin-bottom:10px" id="do-reload">Ricarica l'app ↻</button>
-    <div class="sub" style="text-align:center;margin-bottom:14px">
-      Serve solo se ho pubblicato una versione nuova e non la vedi.</div>
-    <button class="b full" id="do-logout">Esci</button>`;
+
+    <div class="card g chiusura">
+      <button class="b full" id="do-reload">Ricarica l'app ↻</button>
+      <div class="sub" style="text-align:center;margin:9px 0 12px">
+        Serve solo se ho pubblicato una versione nuova e non la vedi.</div>
+      <button class="b full bad" id="do-logout">Esci</button>
+    </div>`;
+
+  if ($("#do-qr")) $("#do-qr").onclick = apriQrGrande;
+  $("#do-share").onclick = condividiApp;
+  $("#do-copy").onclick = copiaLink;
+
+  // il ruolo si salva da solo appena cambia la scelta
+  $("#mio-ruolo").onchange = async e => {
+    const prima = S.me.job, nuovo = e.target.value;
+    S.me.job = nuovo;
+    $("#hero-ruolo").textContent = nuovo || "senza ruolo";
+    try { await api("api_set_job", { p_token: S.token, p_job: nuovo }); toast("Ruolo aggiornato"); }
+    catch (err) {
+      S.me.job = prima; e.target.value = prima || "";
+      $("#hero-ruolo").textContent = prima || "senza ruolo";
+      toast(messaggio(err), true);
+    }
+  };
 
   $("#do-pin").onclick = async () => {
     try {
@@ -1302,8 +1618,8 @@ async function disegnaProfilo() {
 async function disegnaNotifiche() {
   const box = $("#box-notifiche");
   if (!box) return;
-  const titolo = `<h3>Notifiche</h3>`;
-  const nota = t => `<div class="sub" style="margin-top:4px">${t}</div>`;
+  const titolo = "";                       // il titolo è la riga "Notifiche" fuori dalla scheda
+  const nota = t => `<div class="sub">${t}</div>`;
 
   if (DEMO) {
     box.innerHTML = titolo + nota("In modalità demo non partono: servono i dati veri.");
@@ -1356,14 +1672,17 @@ async function disegnaTeam() {
   let membri = [];
   try { membri = await api("api_members", { p_token: S.token }); } catch { return; }
 
-  $("#team-box").innerHTML = `<div class="card g">
-    <h3>Gestione elenco <span class="sub">(${membri.length})</span></h3>
+  $("#team-box").innerHTML = `
+    <div class="sect-title">Gestione elenco · ${membri.length}</div>
+    <div class="card g">
     <div class="sub" style="margin-bottom:6px">Non serve ad approvare niente: solo per rimettere a posto un codice
     dimenticato o togliere chi non lavora più con voi.</div>
     ${membri.map(m => `<div class="swap" style="margin-top:8px">
-      <div class="top"><div><div class="who">${esc(m.full_name)}${
+      <div class="top"><div class="row" style="gap:9px;flex-wrap:nowrap">
+        <span class="avatar">${esc(iniziali(m.full_name))}</span>
+        <div><div class="who">${esc(m.full_name)}${
         m.job ? `<span class="ruolo">${esc(m.job)}</span>` : ""}</div>
-        <div class="when">${m.active ? "attivo" : "disattivato"}${m.role === "admin" ? " · gestisce l'elenco" : ""}</div></div></div>
+        <div class="when">${m.active ? "attivo" : "disattivato"}${m.role === "admin" ? " · gestisce l'elenco" : ""}</div></div></div></div>
       ${m.id === S.me.id ? `<div class="sub" style="margin-top:6px">Sei tu</div>` : `<div class="acts">
         <button class="b sm" data-act="m-pin" data-id="${esc(m.id)}">Reimposta codice</button>
         <button class="b sm" data-act="m-active" data-id="${esc(m.id)}" data-to="${m.active ? "0" : "1"}">${m.active ? "Disattiva" : "Riattiva"}</button>
@@ -1416,14 +1735,6 @@ document.addEventListener("click", async e => {
     case "cancel":  return chiama("api_cancel",  { p_id: id }, "Richiesta annullata", "annullata");
     case "edit":    vaiA("cal"); return apriGiorno(b.dataset.d);
     case "kind":    S.nuovoKind = b.dataset.k; return disegna();
-    case "job": {
-      const prima = S.me.job;
-      S.me.job = b.dataset.r;                      // aggiorno subito, poi salvo
-      disegna();
-      try { await api("api_set_job", { p_token: S.token, p_job: b.dataset.r }); toast("Ruolo aggiornato"); }
-      catch (err) { S.me.job = prima; disegna(); toast(messaggio(err), true); }
-      return;
-    }
     case "offer": {
       const d = b.dataset.d;
       if (S.nuoveOfferte[d] !== undefined) delete S.nuoveOfferte[d];
