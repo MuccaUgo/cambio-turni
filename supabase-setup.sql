@@ -405,6 +405,12 @@ begin
                 where (o->>'d')::date = p_date
                    or public.week_start((o->>'d')::date) <> public.week_start(p_date))
     then raise exception 'OFFER_INVALID'; end if;
+
+    -- Un giorno off senza niente in cambio non è uno scambio: è una richiesta
+    -- di favore, e chi legge la bacheca non ha modo di valutarla. Almeno un
+    -- giorno va offerto. Il controllo sta qui e non solo nell'app, se no
+    -- basta chiamare /rest/v1/rpc/api_create a mano per scavalcarlo.
+    if jsonb_array_length(v_offers) = 0 then raise exception 'OFFERS_REQUIRED'; end if;
   else
     v_offers := '[]'::jsonb;
   end if;
