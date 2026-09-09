@@ -46,7 +46,7 @@ create table public.members (
   id         uuid primary key default gen_random_uuid(),
   full_name  text not null,
   pin_hash   text not null,                  -- bcrypt del codice a 6 cifre
-  -- mansione: Pro / Expert / Specialist. È solo un'etichetta descrittiva,
+  -- mansione (Specialist, Creative, Genius…): è solo un'etichetta descrittiva,
   -- serve a capire chi può coprire chi. NON dà permessi.
   job        text,
   -- questo invece è il permesso: 'admin' tiene in ordine l'elenco, nient'altro

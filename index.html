@@ -291,7 +291,7 @@
   .membro { margin-top: 8px; padding: 10px 12px; border-radius: 16px; background: var(--glass3); }
   .membro .who  { font-size: .93rem; }
   .membro .when { font-size: .75rem; }
-  .mem-acts { display: flex; gap: 6px; margin-top: 8px; }
+  .mem-acts { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
   .mem-acts .b { flex: 1; min-width: 0; padding: 7px 5px; font-size: .73rem; white-space: nowrap; }
   .legend { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 10px; margin-top: 12px; font-size: .7rem; color: var(--ink2); }
   .legend span { display: flex; align-items: center; gap: 6px; line-height: 1.25; }
@@ -1044,7 +1044,8 @@ const ICONA = k => `<span class="i">${SVG[k] || SVG.orario}</span>`;
 
 // I ruoli sono solo etichette descrittive: servono a capire chi può coprire chi,
 // non danno permessi. Per aggiungerne uno basta scriverlo qui.
-const RUOLI = ["Pro", "Expert", "Specialist"];
+const RUOLI = ["Specialist", "Expert", "Pro", "Creative", "Creative Pro",
+               "Tech Specialist", "Tech Expert", "Genius"];
 
 // Le otto combinazioni: tipo di richiesta × di chi è × a che punto sta
 function etichetta(sw) {
@@ -2019,6 +2020,7 @@ async function disegnaTeam() {
         <button class="b sm" data-act="m-pin" data-id="${esc(m.id)}">Codice</button>
         <button class="b sm" data-act="m-active" data-id="${esc(m.id)}" data-to="${m.active ? "0" : "1"}">${m.active ? "Disattiva" : "Riattiva"}</button>
         <button class="b sm" data-act="m-role" data-id="${esc(m.id)}" data-to="${m.role === "admin" ? "member" : "admin"}">${m.role === "admin" ? "Non gestore" : "Gestore"}</button>
+        <button class="b sm bad" data-act="m-del" data-id="${esc(m.id)}" data-n="${esc(m.full_name)}">Elimina</button>
       </div>`}
     </div>`).join("")}</div>`;
 }
@@ -2085,6 +2087,12 @@ document.addEventListener("click", async e => {
       return chiama("api_member_update", { p_id: id, p_pin: nuovo.trim() }, "Codice reimpostato");
     }
     case "m-active": return chiama("api_member_update", { p_id: id, p_active: b.dataset.to === "1" }, "Aggiornato");
+    case "m-del": {
+      // sparisce davvero, con le sue richieste: meglio chiederlo due volte
+      if (!confirm(`Elimino ${b.dataset.n} dall'elenco?\n\nSpariscono anche le sue richieste e non si torna indietro: `
+                   + `per rientrare dovrà registrarsi da capo. Se vuoi solo togliergli l'accesso, usa Disattiva.`)) return;
+      return chiama("api_member_delete", { p_id: id }, "Eliminato dall'elenco");
+    }
     case "m-role":   return chiama("api_member_update", { p_id: id, p_role: b.dataset.to }, "Aggiornato");
   }
 });

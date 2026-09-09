@@ -77,8 +77,10 @@ digiti il codice sul tastierino.
 
 La **prima persona che si registra** tiene le chiavi di casa: non approva
 niente, può solo reimpostare il codice di chi l'ha dimenticato e togliere
-dall'elenco chi non lavora più con voi. Può passare questo compito a qualcun
-altro dalla scheda Profilo.
+dall'elenco chi non lavora più con voi: **Disattiva** gli leva l'accesso ma
+lascia lo storico, **Elimina** lo cancella per davvero insieme alle sue
+richieste (chiede conferma, e non si torna indietro). Può passare questo
+compito a qualcun altro dalla scheda Profilo.
 
 Per far entrare qualcuno di nuovo non serve dettargli l'indirizzo: in
 **Profilo** c'è il **codice QR** dell'app. Glielo fai inquadrare con la
