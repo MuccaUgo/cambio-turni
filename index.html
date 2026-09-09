@@ -463,6 +463,16 @@
     </div>
   </div>
 
+  <div id="v-rete" class="hide">
+    <div class="step-title">Non riesco a collegarmi</div>
+    <div class="step-sub">Il tuo accesso è ancora valido: appena torna la rete
+      riprendi da dove eri, senza ridigitare il codice.</div>
+    <div class="stack" style="margin-top:18px">
+      <button class="b pri full" id="rete-riprova">Riprova</button>
+    </div>
+    <button class="link" id="rete-esci">Esci e rientra col codice</button>
+  </div>
+
   <div id="v-pin" class="hide">
     <div class="step-title" id="pin-title">Il tuo codice</div>
     <div class="step-sub" id="pin-sub">6 cifre</div>
@@ -1092,10 +1102,38 @@ function disegnaPersone() {
          ${p.job ? `<span class="ruolo">${esc(p.job)}</span>` : ""}</button>`).join("")
     : `<div class="empty-note">${persone.length ? "Nessun nome trovato." : "Nessuno si è ancora registrato.<br>Sei il primo."}</div>`;
 }
+// Rete assente all'avvio: il token resta dov'è e si riprova, da soli appena
+// il telefono torna in linea o quando lo chiede chi guarda.
+function mostraSenzaRete() {
+  mostraStep("rete");
+  const riprova = async (bottone) => {
+    if (bottone) bottone.disabled = true;
+    try {
+      const r = await api("api_session", { p_token: S.token });
+      S.me = r.member; window.removeEventListener("online", suOnline);
+      return avvia();
+    } catch (e) {
+      if (String(e.message).includes("NOT_AUTHENTICATED")) return esciDaFermo();
+      if (bottone) { toast("Ancora niente rete", true); bottone.disabled = false; }
+    }
+  };
+  const suOnline = () => riprova(null);
+  window.addEventListener("online", suOnline);
+  $("#rete-riprova").onclick = e => riprova(e.target);
+  $("#rete-esci").onclick = esciDaFermo;
+
+  function esciDaFermo() {
+    window.removeEventListener("online", suOnline);
+    localStorage.removeItem("cambioturni_token"); S.token = null;
+    mostraStep("pick"); caricaPersone();
+  }
+}
+
 function mostraStep(step) {
   $("#v-pick").classList.toggle("hide", step !== "pick");
   $("#v-name").classList.toggle("hide", step !== "name");
   $("#v-pin").classList.toggle("hide", step !== "pin");
+  $("#v-rete").classList.toggle("hide", step !== "rete");
   if (step === "pick") { $("#q-person").value = ""; disegnaPersone(); }
   // anche quando ci si arriva senza passare da "registrami": succede al primo
   // utente in assoluto, che salta la scelta del nome perché l'elenco è vuoto
@@ -2039,8 +2077,9 @@ document.addEventListener("click", async e => {
       if (evento) avvisa(res?.id || args.p_id, evento);   // api_create restituisce l'id
       if (msg) toast(msg);
       await ricarica();
+      return true;
     }
-    catch (err) { toast(messaggio(err), true); }
+    catch (err) { toast(messaggio(err), true); return false; }
     finally { b.disabled = false; }
   };
 
@@ -2056,10 +2095,12 @@ document.addEventListener("click", async e => {
     }
     case "take-no": S.takeFor = null; S.takeNote = ""; return disegna();
     case "take-ok": {
-      const nota = S.takeNote;
-      S.takeFor = null; S.takeNote = "";
-      return chiama("api_take", { p_id: id, p_my_time: S.takeTime, p_note: nota || null },
-                    "Fatto: ora avvisate UKG", "presa");
+      // se non è passata, il modulo resta aperto col commento già scritto:
+      // rifarlo da capo per un buco di rete è la cosa più antipatica che c'è
+      const ok = await chiama("api_take", { p_id: id, p_my_time: S.takeTime, p_note: S.takeNote || null },
+                              "Fatto: ora avvisate UKG", "presa");
+      if (ok) { S.takeFor = null; S.takeNote = ""; disegna(); }
+      return;
     }
     case "decline":   return chiama("api_decline", { p_id: id, p_on: true });
     case "undecline": return chiama("api_decline", { p_id: id, p_on: false });
@@ -2080,7 +2121,9 @@ document.addEventListener("click", async e => {
         p_to: S.nuovoKind === "off" ? null : S.nuovoA, p_from: S.nuovoDa || null,
         p_offers: S.nuovoKind === "off"
           ? Object.entries(S.nuoveOfferte).map(([d, t]) => ({ d, t })) : [] },
-      "Richiesta pubblicata", "aperta").then(chiudiSheet);
+      "Richiesta pubblicata", "aperta").then(ok => { if (ok) chiudiSheet(); });
+      // se fallisce il pannello resta com'era: orari e giorni offerti sono
+      // nello stato, quindi si riprova senza rifare tutte le scelte
     case "m-pin": {
       const nuovo = prompt("Nuovo codice di 6 cifre per questa persona:");
       if (!nuovo) return;
@@ -2184,7 +2227,13 @@ async function avvia() {
     try {
       const r = await api("api_session", { p_token: S.token });
       S.me = r.member; return avvia();
-    } catch { localStorage.removeItem("cambioturni_token"); S.token = null; }
+    } catch (e) {
+      // Il token si butta solo se il server dice che non vale più. Se invece
+      // è caduta la rete il codice non c'entra niente: chiederlo di nuovo
+      // sarebbe solo una scocciatura, e chi non se lo ricorda resta fuori.
+      if (!String(e.message).includes("NOT_AUTHENTICATED")) return mostraSenzaRete();
+      localStorage.removeItem("cambioturni_token"); S.token = null;
+    }
   }
   mostraStep("pick"); caricaPersone();
 })();
