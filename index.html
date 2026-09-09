@@ -908,7 +908,8 @@ const S = {
   nuovoA: "09:30",   // "vorrei iniziare alle"
   nuovoDa: "",       // "il mio turno ora" (facoltativo)
   nuoveOfferte: {},  // solo per il giorno off: { "2026-09-01": "09:00", ... }
-  cal: null          // il calendario dei turni — vedi qui sotto
+  cal: null,         // il calendario dei turni — vedi qui sotto
+  gestito: null      // la persona scelta nella tendina di "Gestione elenco"
 };
 
 /* ============================================================
@@ -1060,6 +1061,17 @@ const ICONA = k => `<span class="i">${SVG[k] || SVG.orario}</span>`;
 // non danno permessi. Per aggiungerne uno basta scriverlo qui.
 const RUOLI = ["Specialist", "Expert", "Pro", "Creative", "Creative Pro",
                "Tech Specialist", "Tech Expert", "Genius"];
+
+// Le famiglie decidono a chi suona la notifica di una richiesta nuova. Questa
+// qui serve solo a scriverlo in chiaro nel Profilo: quella che comanda sta
+// nella funzione `notifica`, perché il telefono non deve poter scegliere da
+// solo chi avvisare. Se cambia una, va cambiata anche l'altra.
+const FAMIGLIE = {
+  "Product Zone": ["Specialist", "Expert", "Pro"],
+  "Genius Bar":   ["Genius", "Tech Specialist", "Tech Expert"],
+  "Creative":     ["Creative", "Creative Pro"],
+};
+const famigliaDi = ruolo => Object.keys(FAMIGLIE).find(f => FAMIGLIE[f].includes(ruolo)) || null;
 
 // Le otto combinazioni: tipo di richiesta × di chi è × a che punto sta
 function etichetta(sw) {
@@ -1519,6 +1531,12 @@ function disegnaBacheca() {
   const mie = S.board.filter(x => x.author_id === meId);
   const prese = S.board.filter(x => x.taker_id === meId);
 
+  // Prima il proprio reparto, poi tutti gli altri. Chi non ha ancora scelto il
+  // ruolo non ha un reparto: per lui l'elenco resta uno solo, come prima.
+  const mioReparto = famigliaDi(S.me.job);
+  const delMio = mioReparto ? daAiutare.filter(x => famigliaDi(x.author_job) === mioReparto) : [];
+  const altrui = mioReparto ? daAiutare.filter(x => famigliaDi(x.author_job) !== mioReparto) : daAiutare;
+
   const sezione = (titolo, lista, vuoto) =>
     `<div class="sect-title">${titolo}</div>` +
     (lista.length ? lista.map(x => schedaSwap(x)).join("") : `<div class="card g"><div class="sub">${vuoto}</div></div>`);
@@ -1531,8 +1549,13 @@ function disegnaBacheca() {
        <span class="sub">Aggiornato alle ${ora}</span>
        <button class="b sm" data-act="refresh">↻ Aggiorna</button>
      </div>` +
-    sezione(`Chi cerca un cambio${daAiutare.length ? " · " + daAiutare.length : ""}`, daAiutare,
-            "Nessuno sta cercando un cambio in questo momento.") +
+    (mioReparto
+      ? sezione(`${mioReparto}${delMio.length ? " · " + delMio.length : ""}`, delMio,
+                `Nessuno di ${mioReparto} sta cercando un cambio.`) +
+        // gli altri reparti si vedono lo stesso: se puoi coprire, copri
+        (altrui.length ? sezione(`Altri reparti · ${altrui.length}`, altrui, "") : "")
+      : sezione(`Chi cerca un cambio${daAiutare.length ? " · " + daAiutare.length : ""}`, daAiutare,
+                "Nessuno sta cercando un cambio in questo momento.")) +
     sezione("Le mie richieste", mie, "Non hai richieste aperte. Tocca un giorno sul calendario per crearne una.") +
     (prese.length ? sezione("Ci penso io", prese, "") : "");
   autoScrollStrisce();
@@ -1802,7 +1825,7 @@ async function disegnaProfilo() {
           ${ruoloIgnoto ? `<option value="" selected>Scegli il tuo ruolo</option>` : ""}
           ${RUOLI.map(r => `<option value="${esc(r)}" ${S.me.job === r ? "selected" : ""}>${esc(r)}</option>`).join("")}
         </select></div>
-        <div class="sub" style="margin-top:6px">Serve solo ai colleghi per capire al volo chi può coprirti.</div>
+        <div class="sub" style="margin-top:6px" id="nota-ruolo"></div>
       </div>
     </div>
     <details class="card g pieghevole">
@@ -1829,6 +1852,16 @@ async function disegnaProfilo() {
       <button class="b full bad" id="do-logout">Esci</button>
     </div>`;
 
+  const notaRuolo = ruolo => {
+    const f = famigliaDi(ruolo);
+    return f
+      ? `Sei in <b>${esc(f)}</b>: ti avviso quando qualcuno di ${esc(f)} cerca un cambio.
+         In bacheca restano comunque le richieste di tutti.`
+      : `Scegli il ruolo: serve ai colleghi per capire chi può coprirti, e a mandarti
+         le notifiche dei cambi che ti riguardano. Finché manca, le ricevi tutte.`;
+  };
+  $("#nota-ruolo").innerHTML = notaRuolo(S.me.job);
+
   if ($("#do-qr")) $("#do-qr").onclick = apriQrGrande;
   $("#do-share").onclick = condividiApp;
   $("#do-copy").onclick = copiaLink;
@@ -1838,10 +1871,12 @@ async function disegnaProfilo() {
     const prima = S.me.job, nuovo = e.target.value;
     S.me.job = nuovo;
     $("#hero-ruolo").textContent = nuovo || "senza ruolo";
+    $("#nota-ruolo").innerHTML = notaRuolo(nuovo);
     try { await api("api_set_job", { p_token: S.token, p_job: nuovo }); toast("Ruolo aggiornato"); }
     catch (err) {
       S.me.job = prima; e.target.value = prima || "";
       $("#hero-ruolo").textContent = prima || "senza ruolo";
+      $("#nota-ruolo").innerHTML = notaRuolo(prima);
       toast(messaggio(err), true);
     }
   };
@@ -2044,27 +2079,50 @@ async function disegnaNotifiche() {
   };
 }
 
+let elencoTeam = [];   // l'ultimo elenco letto: cambiare persona non lo rilegge
+
 async function disegnaTeam() {
   if (S.me.role !== "admin") return;
-  let membri = [];
-  try { membri = await api("api_members", { p_token: S.token }); } catch { return; }
+  try { elencoTeam = await api("api_members", { p_token: S.token }); } catch { return; }
+  mostraTeam();
+}
 
-  $("#team-box").innerHTML = `
-    <div class="sect-title">Gestione elenco · ${membri.length}</div>
-    <div class="card g">
-    <div class="sub" style="margin-bottom:6px">Non serve ad approvare niente: solo per rimettere a posto un codice
-    dimenticato o togliere chi non lavora più con voi.</div>
-    ${membri.map(m => `<div class="membro">
+// In un gruppo grande l'elenco intero non ci sta in una schermata, e per
+// reimpostare un codice non serve vedere tutti: si sceglie la persona dalla
+// tendina e si vede solo lei, con i suoi comandi.
+function mostraTeam() {
+  const membri = elencoTeam;
+  if (S.gestito && !membri.some(m => m.id === S.gestito)) S.gestito = null;   // eliminata nel frattempo
+  const scelto = membri.find(x => x.id === S.gestito);
+
+  const riga = m => `<div class="membro" style="margin-top:11px">
       <div class="who">${esc(m.full_name)}${m.job ? `<span class="ruolo">${esc(m.job)}</span>` : ""}</div>
       <div class="when">${m.active ? "attivo" : "disattivato"}${m.role === "admin" ? " · gestisce l'elenco" : ""}${
         m.id === S.me.id ? " · sei tu" : ""}</div>
-      ${m.id === S.me.id ? "" : `<div class="mem-acts">
+      ${m.id === S.me.id
+        ? `<div class="sub" style="margin-top:6px">Sul tuo account non puoi intervenire da qui.</div>`
+        : `<div class="mem-acts">
         <button class="b sm" data-act="m-pin" data-id="${esc(m.id)}">Codice</button>
         <button class="b sm" data-act="m-active" data-id="${esc(m.id)}" data-to="${m.active ? "0" : "1"}">${m.active ? "Disattiva" : "Riattiva"}</button>
         <button class="b sm" data-act="m-role" data-id="${esc(m.id)}" data-to="${m.role === "admin" ? "member" : "admin"}">${m.role === "admin" ? "Non gestore" : "Gestore"}</button>
         <button class="b sm bad" data-act="m-del" data-id="${esc(m.id)}" data-n="${esc(m.full_name)}">Elimina</button>
       </div>`}
-    </div>`).join("")}</div>`;
+    </div>`;
+
+  $("#team-box").innerHTML = `
+    <div class="sect-title">Gestione elenco · ${membri.length}</div>
+    <div class="card g">
+      <div class="sub" style="margin-bottom:9px">Non serve ad approvare niente: solo per rimettere a posto un codice
+      dimenticato o togliere chi non lavora più con voi.</div>
+      <div class="sel"><select id="scegli-membro">
+        <option value="">Scegli una persona…</option>
+        ${membri.map(x => `<option value="${esc(x.id)}" ${x.id === S.gestito ? "selected" : ""}>${
+          esc(x.full_name)}${x.active ? "" : " · disattivato"}</option>`).join("")}
+      </select></div>
+      ${scelto ? riga(scelto) : ""}
+    </div>`;
+
+  $("#scegli-membro").onchange = e => { S.gestito = e.target.value || null; mostraTeam(); };
 }
 
 /* ============================================================
