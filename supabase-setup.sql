@@ -28,6 +28,7 @@ create extension if not exists pgcrypto with schema extensions;
 -- ------------------------------------------------------------
 -- Pulizia (anche delle tabelle della v1)
 -- ------------------------------------------------------------
+drop table if exists public.feedback       cascade;
 drop table if exists public.swap_declines  cascade;
 drop table if exists public.swaps          cascade;
 drop table if exists public.requests       cascade;
@@ -112,6 +113,19 @@ create table public.swap_declines (
   primary key (swap_id, member_id)
 );
 
+-- "Dimmi come va": suggerimenti e problemi scritti dal Profilo. Il nome è
+-- copiato qui dentro perché il messaggio resti leggibile anche quando chi
+-- l'ha scritto non è più nell'elenco.
+create table public.feedback (
+  id         bigserial primary key,
+  member_id  uuid references public.members(id) on delete set null,
+  nome       text not null,
+  testo      text not null,
+  letto      boolean not null default false,
+  created_at timestamptz not null default now()
+);
+create index feedback_da_leggere on public.feedback (created_at desc) where not letto;
+
 -- ------------------------------------------------------------
 -- Permessi: la chiave anon è pubblica, quindi non tocca le tabelle.
 -- Tutto passa dalle funzioni api_* qui sotto.
@@ -122,13 +136,16 @@ alter table public.sessions       enable row level security;
 alter table public.login_attempts enable row level security;
 alter table public.swaps          enable row level security;
 alter table public.swap_declines  enable row level security;
+alter table public.feedback       enable row level security;
 
 revoke all on public.members        from anon, authenticated;
 revoke all on public.sessions       from anon, authenticated;
 revoke all on public.login_attempts from anon, authenticated;
 revoke all on public.swaps          from anon, authenticated;
 revoke all on public.swap_declines  from anon, authenticated;
+revoke all on public.feedback       from anon, authenticated;
 revoke all on sequence public.login_attempts_id_seq from anon, authenticated;
+revoke all on sequence public.feedback_id_seq       from anon, authenticated;
 
 -- Nessuna policy = nessun accesso diretto alle tabelle. È voluto.
 
@@ -587,6 +604,49 @@ begin
 end $$;
 
 -- ------------------------------------------------------------
+-- Dimmi come va: i messaggi dal Profilo
+-- ------------------------------------------------------------
+create or replace function public.api_feedback_send(p_token text, p_text text)
+returns json language plpgsql security definer set search_path = pg_catalog, public, extensions as $$
+declare v_me public.members; v_testo text;
+begin
+  v_me := public.auth_member(p_token);
+  v_testo := btrim(coalesce(p_text, ''));
+  if length(v_testo) < 3    then raise exception 'FEEDBACK_VUOTO'; end if;
+  if length(v_testo) > 1000 then raise exception 'FEEDBACK_LUNGO'; end if;
+  -- un dito fermo sul pulsante non deve poter riempire la tabella
+  if (select count(*) from public.feedback
+       where member_id = v_me.id and created_at > now() - interval '1 hour') >= 5 then
+    raise exception 'FEEDBACK_TROPPI';
+  end if;
+  insert into public.feedback (member_id, nome, testo)
+  values (v_me.id, v_me.full_name, v_testo);
+  return json_build_object('ok', true);
+end $$;
+
+-- Li legge solo chi gestisce l'elenco, e solo quelli non ancora archiviati
+create or replace function public.api_feedback_list(p_token text)
+returns json language plpgsql stable security definer set search_path = pg_catalog, public, extensions as $$
+begin
+  perform public.auth_admin(p_token);
+  return coalesce((
+    select json_agg(json_build_object('id', f.id, 'nome', f.nome, 'testo', f.testo,
+                                      'created_at', f.created_at)
+                    order by f.created_at desc)
+      from public.feedback f
+     where not f.letto), '[]'::json);
+end $$;
+
+create or replace function public.api_feedback_done(p_token text, p_id bigint)
+returns json language plpgsql security definer set search_path = pg_catalog, public, extensions as $$
+begin
+  perform public.auth_admin(p_token);
+  update public.feedback set letto = true where id = p_id;
+  if not found then raise exception 'NOT_FOUND'; end if;
+  return json_build_object('ok', true);
+end $$;
+
+-- ------------------------------------------------------------
 -- Chi può chiamare cosa
 -- ------------------------------------------------------------
 -- ATTENZIONE: qui vanno nominati anche anon e authenticated. Supabase concede
@@ -620,5 +680,8 @@ grant execute on function
   public.api_decline(text,uuid,boolean),
   public.api_members(text),
   public.api_member_update(text,uuid,text,boolean,text),
-  public.api_member_delete(text,uuid)
+  public.api_member_delete(text,uuid),
+  public.api_feedback_send(text,text),
+  public.api_feedback_list(text),
+  public.api_feedback_done(text,bigint)
 to anon, authenticated;

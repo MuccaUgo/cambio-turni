@@ -98,7 +98,7 @@
     border-radius: 14px; padding: 12px; width: 100%;
     -webkit-appearance: none; appearance: none;
   }
-  input:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
+  input:focus, textarea:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
   .hide { display: none !important; }
 
   /* ---------- materiale vetro ---------- */
@@ -165,8 +165,8 @@
   }
   .scan-testo { color: #fff; font-weight: 700; text-align: center; text-shadow: 0 2px 10px rgba(0,0,0,.6); }
 
-  /* ---------- accesso ---------- */
-  #auth {
+  /* ---------- accesso e benvenuto ---------- */
+  #auth, #benvenuto {
     min-height: 100dvh; display: flex; flex-direction: column;
     padding: calc(26px + env(safe-area-inset-top)) 18px calc(18px + env(safe-area-inset-bottom));
     max-width: 460px; margin: 0 auto;
@@ -400,6 +400,25 @@
     border-radius: 12px; padding: 8px 11px; margin-bottom: 11px;
   }
 
+  /* ---------- benvenuto ---------- */
+  /* il pulsante resta appiccicato in fondo allo schermo: il testo è lungo e
+     chi non scorre fino in fondo non deve restare senza il modo di andare avanti */
+  #benve-ok { position: sticky; bottom: calc(6px + env(safe-area-inset-bottom)); margin-top: 12px; }
+  .punto { display: flex; gap: 12px; align-items: flex-start; }
+  .punto + .punto { margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--hair); }
+  .punto .ic { font-size: 1.3rem; line-height: 1.25; flex: none; width: 28px; text-align: center; }
+  .punto .testo { font-size: .855rem; line-height: 1.55; color: var(--ink2); min-width: 0; }
+  .punto .testo b { color: var(--ink); }
+  .punto .capo { display: block; font-size: .96rem; font-weight: 700; color: var(--ink); margin-bottom: 3px; }
+  .punto ul { margin: 5px 0 0 17px; }
+  .punto li { margin-bottom: 3px; }
+
+  /* ---------- suggerimenti ---------- */
+  #fb-testo { min-height: 92px; resize: vertical; line-height: 1.5; }
+  .msg + .msg { border-top: 1px solid var(--hair); padding-top: 12px; margin-top: 12px; }
+  .msg .quando { font-size: .72rem; font-weight: 800; color: var(--ink2); text-transform: uppercase; letter-spacing: .04em; }
+  .msg .detto { font-size: .9rem; line-height: 1.5; margin: 5px 0 9px; white-space: pre-wrap; overflow-wrap: anywhere; }
+
   /* ---------- pannello ---------- */
   .scrim { position: fixed; inset: 0; background: rgba(5,20,22,.42); z-index: 40; opacity: 0; pointer-events: none; transition: opacity .22s; -webkit-backdrop-filter: blur(2px); backdrop-filter: blur(2px); }
   .scrim.on { opacity: 1; pointer-events: auto; }
@@ -437,6 +456,20 @@
 <div id="demo-banner" class="banner hide">
   Modalità demo: i dati restano su questo telefono. Configura Supabase in <b>index.html</b> per usarla col team.
 </div>
+
+<!-- ============ BENVENUTO ============ -->
+<!-- La prima volta che si apre l'app (di solito arrivandoci dal codice QR di
+     un collega) prima dell'accesso si spiega cos'è, come si installa e cosa
+     finisce sul server. Si rilegge quando si vuole dal Profilo. -->
+<section id="benvenuto" class="hide">
+  <div class="brand">
+    <div class="logo">🔄</div>
+    <h1>Cambio turni</h1>
+    <p>Trova un collega che ti copre, senza girare messaggi</p>
+  </div>
+  <div class="card g" id="benve-corpo"></div>
+  <button class="b pri full" id="benve-ok">Iniziamo →</button>
+</section>
 
 <!-- ============ ACCESSO ============ -->
 <section id="auth">
@@ -608,7 +641,10 @@ const ERRORI = {
   NOT_RESOLVED: "La richiesta non è segnata come risolta.",
   NOT_YOURS: "Solo chi ha chiesto e chi ha accettato possono farlo.",
   NOT_FOUND: "Richiesta non trovata.",
-  CANNOT_EDIT_SELF: "Non puoi modificare il tuo stesso account."
+  CANNOT_EDIT_SELF: "Non puoi modificare il tuo stesso account.",
+  FEEDBACK_VUOTO: "Scrivi due righe e te le leggo.",
+  FEEDBACK_LUNGO: "Troppo lungo: stai sotto i 1000 caratteri.",
+  FEEDBACK_TROPPI: "Ne hai già mandati parecchi: riprova più tardi."
 };
 const messaggio = e => {
   const s = String(e?.message || e || "");
@@ -808,6 +844,26 @@ const demo = {
         s.swaps = s.swaps.filter(x => x.author_id !== a.p_id);
         return done({ ok: true });
       }
+      case "api_feedback_send": {
+        const m = demo.me(s, a.p_token);
+        const t = (a.p_text || "").trim();
+        if (t.length < 3) throw new Error("FEEDBACK_VUOTO");
+        if (t.length > 1000) throw new Error("FEEDBACK_LUNGO");
+        s.feedback = s.feedback || [];
+        s.feedback.push({ id: Date.now(), nome: m.full_name, testo: t,
+                          letto: false, created_at: new Date().toISOString() });
+        return done({ ok: true });
+      }
+      case "api_feedback_list": {
+        demo.admin(s, a.p_token);
+        return (s.feedback || []).filter(f => !f.letto).reverse();
+      }
+      case "api_feedback_done": {
+        demo.admin(s, a.p_token);
+        const f = (s.feedback || []).find(x => String(x.id) === String(a.p_id));
+        if (!f) throw new Error("NOT_FOUND");
+        f.letto = true; return done({ ok: true });
+      }
       default: throw new Error("Funzione sconosciuta: " + fn);
     }
   }
@@ -909,7 +965,8 @@ const S = {
   nuovoDa: "",       // "il mio turno ora" (facoltativo)
   nuoveOfferte: {},  // solo per il giorno off: { "2026-09-01": "09:00", ... }
   cal: null,         // il calendario dei turni — vedi qui sotto
-  gestito: null      // la persona scelta nella tendina di "Gestione elenco"
+  gestito: null,     // la persona scelta nella tendina di "Gestione elenco"
+  fbTesto: ""        // il messaggio che si sta scrivendo in "Dimmi come va"
 };
 
 /* ============================================================
@@ -1275,8 +1332,17 @@ function disegna() {
   disegnaTab();
   if (S.tab === "cal") disegnaCalendario();
   if (S.tab === "board") disegnaBacheca();
-  if (S.tab === "me") disegnaProfilo();
+  if (S.tab === "me" && !staScrivendo()) disegnaProfilo();
   if (S.sheetDate) disegnaSheet();
+}
+
+// Il Profilo si rifà da capo a ogni aggiornamento dei dati, che arriva anche
+// da solo. Se in quel momento si sta scrivendo in una casella — il messaggio,
+// il codice nuovo, il link del calendario — rifarlo cancellerebbe tutto sotto
+// le dita: meglio aspettare il giro dopo.
+function staScrivendo() {
+  const a = document.activeElement;
+  return !!a && /^(INPUT|TEXTAREA)$/.test(a.tagName) && $("#view-me").contains(a);
 }
 
 /* ============================================================
@@ -1784,6 +1850,86 @@ function apriQrGrande() {
 }
 
 /* ============================================================
+   BENVENUTO
+   La prima volta che si apre l'app — di solito arrivandoci dal codice QR
+   di un collega — prima dell'accesso si dice cos'è, come si installa e
+   cosa finisce sul server. Poi si rilegge dal Profilo quando si vuole.
+   ============================================================ */
+const VISTO = "cambioturni_visto";
+
+// Le stesse quattro cose sia a tutto schermo al primo avvio sia nel pannello
+// che si apre dal Profilo: tenerle in un posto solo evita che col tempo
+// raccontino due storie diverse.
+function contenutoBenvenuto() {
+  const installa = inHome()
+    ? `<b class="capo">È già sulla tua schermata Home</b>
+       Da qui si apre a tutto schermo e le notifiche possono arrivarti: non devi fare altro.`
+    : iOS()
+      ? `<b class="capo">Mettila sulla schermata Home</b>
+         Tocca <b>Condividi</b> (il quadrato con la freccia in su, in fondo allo schermo)
+         e poi <b>Aggiungi a Home</b>. Non è un vezzo: su iPhone è l'unico modo
+         perché le notifiche ti arrivino davvero.`
+      : `<b class="capo">Mettila sulla schermata Home</b>
+         Apri il menu del browser (<b>⋮</b>) e scegli <b>Aggiungi a schermata Home</b>:
+         si apre a tutto schermo e può avvisarti quando succede qualcosa.`;
+
+  return `
+    <div class="punto"><div class="ic">🤝</div><div class="testo">
+      <b class="capo">Al posto del gruppo</b>
+      Chiedere un cambio in una chat da cento persone vuol dire disturbarne
+      novantanove per parlarne con uno. Qui pubblichi il giorno che ti serve,
+      lo vede chi te lo può coprire, e quando qualcuno risponde la cosa finisce lì.
+    </div></div>
+
+    <div class="punto"><div class="ic">📲</div><div class="testo">${installa}</div></div>
+
+    <div class="punto"><div class="ic">🔒</div><div class="testo">
+      <b class="capo">Cosa finisce sul server</b>
+      <ul>
+        <li>il tuo <b>nome e cognome</b>, e il <b>ruolo</b> se lo scegli;</li>
+        <li>le <b>richieste</b> che pubblichi: giorno, orari, il commento che aggiungi;</li>
+        <li>del <b>codice a 6 cifre</b> resta solo un'impronta, da cui non si torna indietro.</li>
+      </ul>
+      Niente email, niente numero di telefono, niente posizione, nessuna pubblicità:
+      il database è nostro e non lo guarda nessun altro.
+      Il <b>calendario dei turni</b>, se lo colleghi, resta su questo telefono e non esce di qui.<br>
+      <b>Chi vede cosa:</b> la richiesta la leggono i colleghi, ma
+      <b>chi l'ha accettata lo sapete solo in due</b>.
+    </div></div>
+
+    <div class="punto"><div class="ic">🏁</div><div class="testo">
+      <b class="capo">Il cambio vero si fa su UKG</b>
+      Qui ci si mette d'accordo e basta: niente manager, niente approvazioni.
+      Trovata l'intesa, uno dei due la registra su UKG e la richiesta si chiude.
+      Se qualcosa non torna, in <b>Profilo</b> c'è <b>Dimmi come va</b>: due righe e le leggo.
+    </div></div>`;
+}
+
+function mostraBenvenuto() {
+  $("#benve-corpo").innerHTML = contenutoBenvenuto();
+  $("#benvenuto").classList.remove("hide");
+  $("#auth").classList.add("hide");
+}
+// segnare "visto" non deve mai poter bloccare l'app: in navigazione privata
+// localStorage può rifiutare di scrivere, e allora pazienza, si rivede
+const segnaVisto = () => { try { localStorage.setItem(VISTO, "1"); } catch {} };
+
+$("#benve-ok").onclick = () => {
+  segnaVisto();
+  $("#benvenuto").classList.add("hide");
+  $("#auth").classList.remove("hide");
+  window.scrollTo(0, 0);
+};
+
+function apriBenvenuto() {
+  $("#sheet-body").innerHTML = `
+    <h3>Come funziona</h3>
+    <div style="margin-top:13px">${contenutoBenvenuto()}</div>
+    <button class="b full" data-act="close" style="margin-top:15px">Chiudi</button>`;
+  $("#scrim").classList.add("on"); $("#sheet").classList.add("on");
+}
+
+/* ============================================================
    PROFILO
    ============================================================ */
 async function disegnaProfilo() {
@@ -1843,9 +1989,22 @@ async function disegnaProfilo() {
     <div class="sect-title">Notifiche</div>
     <div class="card g" id="box-notifiche"><div class="sub">Controllo le notifiche…</div></div>
 
+    <div class="sect-title">Dimmi come va</div>
+    <div class="card g">
+      <div class="sub">Un problema, una cosa che manca, un'idea per farla funzionare
+      meglio: scrivila qui.</div>
+      <textarea id="fb-testo" rows="3" maxlength="1000" style="margin-top:9px"
+                placeholder="Quello che vuoi dirmi…"></textarea>
+      <button class="b pri full" style="margin-top:9px" id="fb-invia">Invia</button>
+      <div class="sub" style="margin-top:9px;opacity:.8">Arriva a chi gestisce l'elenco
+      firmato col tuo nome, così ti so rispondere. Gli altri colleghi non lo vedono.</div>
+    </div>
+    <div id="fb-box"></div>
+
     <div id="team-box"></div>
 
     <div class="card g chiusura">
+      <button class="b full" style="margin-bottom:10px" id="do-info">Come funziona e cosa salvo</button>
       <button class="b full" id="do-reload">Ricarica l'app ↻</button>
       <div class="sub" style="text-align:center;margin:9px 0 12px">
         Serve solo se ho pubblicato una versione nuova e non la vedi.</div>
@@ -1888,13 +2047,58 @@ async function disegnaProfilo() {
     } catch (e) { toast(messaggio(e), true); }
   };
   $("#do-logout").onclick = esci;
+  $("#do-info").onclick = apriBenvenuto;
+
+  // Il testo vive in S: il Profilo si ridisegna a ogni aggiornamento dei dati
+  // e quello che si stava scrivendo non deve sparire — men che meno se
+  // l'invio fallisce.
+  $("#fb-testo").value = S.fbTesto;
+  $("#fb-testo").oninput = e => { S.fbTesto = e.target.value; };
+  $("#fb-invia").onclick = async (e) => {
+    const testo = S.fbTesto.trim();
+    if (testo.length < 3) return toast("Scrivi due righe e te le leggo", true);
+    e.target.disabled = true;
+    try {
+      await api("api_feedback_send", { p_token: S.token, p_text: testo });
+      S.fbTesto = ""; $("#fb-testo").value = "";
+      toast("Ricevuto, grazie");
+      disegnaFeedback();
+    }
+    catch (err) { toast(messaggio(err), true); }   // il testo resta dov'è: si riprova
+    finally { e.target.disabled = false; }
+  };
   // ricarica saltando la cache, così arriva davvero la versione nuova
   $("#do-reload").onclick = () => location.replace(location.pathname + "?v=" + Date.now());
 
   disegnaBoxCal();
   disegnaNotifiche();
+  disegnaFeedback();
 
   if (S.me.role === "admin") await disegnaTeam();
+}
+
+/* ============================================================
+   PROFILO — i messaggi arrivati (solo per chi gestisce l'elenco)
+   ============================================================ */
+async function disegnaFeedback() {
+  const box = $("#fb-box");
+  if (!box || S.me.role !== "admin") return;
+  let msg = [];
+  try { msg = await api("api_feedback_list", { p_token: S.token }); } catch { return; }
+  if (!msg.length) { box.innerHTML = ""; return; }   // nessuna scheda vuota da spiegare
+
+  const quando = iso => {
+    const d = new Date(iso);
+    return `${d.getDate()} ${MESI[d.getMonth()]}, ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  };
+  box.innerHTML =
+    `<div class="sect-title">Messaggi dei colleghi · ${msg.length}</div>
+     <div class="card g">${msg.map(m => `
+       <div class="msg">
+         <div class="quando">${esc(m.nome)} · ${esc(quando(m.created_at))}</div>
+         <div class="detto">${esc(m.testo)}</div>
+         <button class="b sm" data-act="fb-letto" data-id="${esc(String(m.id))}">Letto, archivia</button>
+       </div>`).join("")}</div>`;
 }
 
 /* ============================================================
@@ -2147,6 +2351,12 @@ document.addEventListener("click", async e => {
 
   switch (act) {
     case "close":   return chiudiSheet();
+    // archiviare un messaggio non tocca le richieste: non serve rileggere tutto
+    case "fb-letto":
+      b.disabled = true;
+      try { await api("api_feedback_done", { p_token: S.token, p_id: Number(id) }); }
+      catch (err) { b.disabled = false; return toast(messaggio(err), true); }
+      return disegnaFeedback();
     case "refresh": return aggiorna(b);
     case "take": {
       // proponi già l'orario più probabile: quello che il collega vuole lasciare
@@ -2287,6 +2497,9 @@ async function avvia() {
 (async function init() {
   if (DEMO) $("#demo-banner").classList.remove("hide");
   if (S.token) {
+    // chi è già dentro non va fermato da una presentazione: la do per vista,
+    // resta nel Profilo sotto "Come funziona e cosa salvo" per chi la vuole
+    segnaVisto();
     try {
       const r = await api("api_session", { p_token: S.token });
       S.me = r.member; return avvia();
@@ -2299,6 +2512,13 @@ async function avvia() {
     }
   }
   mostraStep("pick"); caricaPersone();
+
+  // Primo arrivo, di solito inquadrando il QR di un collega: prima di
+  // chiedergli chi è, gli si dice dove è capitato. L'elenco intanto si
+  // carica dietro le quinte, così quando tocca "Iniziamo" è già pronto.
+  let visto = true;
+  try { visto = !!localStorage.getItem(VISTO); } catch {}
+  if (!visto) mostraBenvenuto();
 })();
 </script>
 </body>

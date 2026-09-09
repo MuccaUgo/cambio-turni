@@ -97,6 +97,38 @@ che la mappa sta in **due posti** — `supabase/functions/notifica/index.ts`, ch
 è quella che comanda, e `index.html`, che serve solo a scriverlo in chiaro nel
 Profilo.
 
+## La prima volta
+
+Chi apre l'app per la prima volta — di solito inquadrando il codice QR di un
+collega — non si ritrova davanti a "chi sei?" senza sapere dove è capitato.
+Prima c'è una schermata che dice quattro cose: che è un modo di chiedere un
+cambio **al posto del gruppo**, come si **mette sulla schermata Home**
+(su iPhone *Condividi → Aggiungi a Home*, l'unico modo perché arrivino le
+notifiche), **cosa finisce sul server** e cosa no, e che il cambio vero si fa
+sempre su UKG.
+
+Si vede una volta sola: il "già visto" sta in `localStorage`, quindi cambiando
+telefono si rivede, e chi era già dentro prima non se la trova davanti.
+Si rilegge quando si vuole da **Profilo → Come funziona e cosa salvo**.
+
+Il testo sta in un posto solo (`contenutoBenvenuto()`), usato sia dalla
+schermata iniziale sia dal pannello: due copie finirebbero per raccontare
+due storie diverse.
+
+## Dimmi come va
+
+In fondo al Profilo c'è una casella per scrivere a chi gestisce l'app: un
+problema, una cosa che manca, un'idea. Il messaggio arriva **firmato col
+proprio nome** — così si può rispondere di persona — e lo vede solo chi
+gestisce l'elenco, che se lo trova in **Messaggi dei colleghi** e lo archivia
+quando l'ha letto.
+
+Se l'invio non riesce **il testo resta dov'è**: si riprova senza riscrivere.
+Vale anche mentre si scrive, se nel frattempo l'app aggiorna i dati da sola.
+
+I paletti stanno sul server: da 3 a 1000 caratteri, e non più di cinque
+messaggi all'ora a testa.
+
 ## Accesso
 
 Nome e cognome + un **codice di 6 cifre** che scegli tu. Niente email, niente
@@ -140,6 +172,11 @@ ogni volta che riapri l'app.
 
 Puoi rieseguirlo quando vuoi, ma **cancella tutti i dati**: le prime righe
 fanno `drop table`.
+
+Su un database **già in funzione** non si rilancia: in
+[`supabase/migrations/`](supabase/migrations) ci sono le aggiunte fatte dopo,
+che si limitano ad aggiungere. Nel setup completo sono già dentro, quindi chi
+parte da zero non deve eseguire niente di quella cartella.
 
 ### 2. Collega l'app
 
@@ -206,6 +243,9 @@ I limiti da conoscere: l'elenco dei nomi è visibile prima di entrare (serve per
 scegliere il proprio) e un codice di 6 cifre è indovinabile da chi ha tempo e
 pazienza. Chiunque abbia il link e un nome libero può registrarsi.
 
+I messaggi di *Dimmi come va* sono firmati e li legge chi gestisce l'elenco:
+non è una cassetta anonima, ed è scritto nella scheda prima di inviare.
+
 **Se un domani serve più sicurezza**, in ordine di fatica crescente:
 
 1. Aggiungere un codice di invito per il team alla registrazione (una tabella
@@ -229,5 +269,6 @@ pazienza. Chiunque abbia il link e un nome libero può registrarsi.
 |---|---|
 | `index.html` | tutta l'app: interfaccia, logica, generatore di QR, modalità demo |
 | `supabase-setup.sql` | tabelle, funzioni `api_*`, permessi |
+| `supabase/migrations/` | le aggiunte per un database già in funzione |
 | `supabase/functions/` | notifiche push e lettura del calendario |
 | `manifest.json`, `icon*.png`, `icon.svg` | icona e installazione sulla Home |
