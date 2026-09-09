@@ -222,6 +222,10 @@
   .me-chip { border-radius: 999px; padding: 7px 13px; font-size: .8rem; font-weight: 700; color: var(--accent); background: var(--accent-bg); flex: none; }
 
   main { max-width: 560px; margin: 0 auto; padding: 0 12px calc(104px + env(safe-area-inset-bottom)); }
+  /* Bacheca e Profilo non hanno l'intestazione del calendario a fare da
+     cuscinetto: senza questo la prima scheda parte incollata al bordo e
+     sull'iPhone finisce sotto l'orologio, perché la pagina sta a tutto schermo. */
+  main.senza-testata { padding-top: calc(16px + env(safe-area-inset-top)); }
   .card { border-radius: var(--r); padding: 15px; margin-bottom: 12px; }
   .card h3 { font-size: 1rem; letter-spacing: -.01em; }
   .sub { color: var(--ink2); font-size: .83rem; line-height: 1.5; }
@@ -2184,6 +2188,7 @@ function vaiA(tab) {
   $("#view-board").classList.toggle("hide", tab !== "board");
   $("#view-me").classList.toggle("hide", tab !== "me");
   document.querySelector("header").style.display = tab === "cal" ? "" : "none";
+  document.querySelector("main").classList.toggle("senza-testata", tab !== "cal");
   window.scrollTo(0, 0);
   disegna();
 }
