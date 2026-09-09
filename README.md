@@ -69,6 +69,33 @@ L'icona nuda è di un collega, l'icona dentro la pastiglia colorata è tua.
 
 Quando una richiesta è risolta sparisce dal calendario: resta nella bacheca.
 
+## Chi viene avvisato
+
+Quando pubblichi una richiesta la notifica non parte a tutti: suona solo a chi
+quel turno lo può davvero coprire, cioè alla tua **famiglia**.
+
+| Famiglia | Ruoli |
+|---|---|
+| Product Zone | Specialist, Expert, Pro |
+| Genius Bar | Genius, Tech Specialist, Tech Expert |
+| Creative | Creative, Creative Pro |
+
+Chi non ha ancora scelto il ruolo continua a ricevere tutto: meglio una
+notifica di troppo che sparire dal giro senza accorgersene. Vale lo stesso per
+un ruolo che non sta in nessuna famiglia.
+
+**Il filtro riguarda solo le notifiche.** In bacheca le richieste restano di
+tutti: se un Genius quel giorno può coprire un turno in Product Zone, lo vede e
+lo prende lo stesso. Tutte le altre notifiche (qualcuno ha preso la tua
+richiesta, è stata risolta, torna disponibile) vanno solo ai due interessati,
+come prima.
+
+A decidere è la funzione `notifica` sul server, non il telefono: l'app manda
+solo l'id della richiesta e il tipo di evento. Se cambi le famiglie, ricordati
+che la mappa sta in **due posti** — `supabase/functions/notifica/index.ts`, che
+è quella che comanda, e `index.html`, che serve solo a scriverlo in chiaro nel
+Profilo.
+
 ## Accesso
 
 Nome e cognome + un **codice di 6 cifre** che scegli tu. Niente email, niente
@@ -190,8 +217,9 @@ pazienza. Chiunque abbia il link e un nome libero può registrarsi.
   inattività e non ci sono backup automatici.
 - Chi cambia telefono rientra con nome e codice.
 - Chi dimentica il codice lo fa reimpostare da chi gestisce l'elenco.
-- Non ci sono notifiche push: la bacheca mostra il numero di richieste aperte
-  sul badge della tab.
+- Le notifiche push si attivano dal Profilo (su iPhone solo con l'app aggiunta
+  alla schermata Home). La bacheca mostra comunque il numero di richieste
+  aperte sul badge della tab.
 
 ## File
 
@@ -199,4 +227,5 @@ pazienza. Chiunque abbia il link e un nome libero può registrarsi.
 |---|---|
 | `index.html` | tutta l'app: interfaccia, logica, generatore di QR, modalità demo |
 | `supabase-setup.sql` | tabelle, funzioni `api_*`, permessi |
+| `supabase/functions/` | notifiche push e lettura del calendario |
 | `manifest.json`, `icon*.png`, `icon.svg` | icona e installazione sulla Home |

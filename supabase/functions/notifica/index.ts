@@ -25,6 +25,18 @@ const cors = {
 const json = (b: unknown, status = 200) =>
   new Response(JSON.stringify(b), { status, headers: { ...cors, "Content-Type": "application/json" } });
 
+// Le famiglie: una richiesta "aperta" suona solo a chi quel turno lo può
+// davvero coprire. Chi non ha ancora scelto il ruolo, o ne ha uno che non
+// sta qui dentro, continua a ricevere tutto: meglio una notifica di troppo
+// che sparire dal giro senza accorgersene.
+const FAMIGLIE: Record<string, string[]> = {
+  "Product Zone": ["Specialist", "Expert", "Pro"],
+  "Genius Bar":   ["Genius", "Tech Specialist", "Tech Expert"],
+  "Creative":     ["Creative", "Creative Pro"],
+};
+const famigliaDi = (ruolo?: string | null) =>
+  Object.keys(FAMIGLIE).find((f) => FAMIGLIE[f].includes(ruolo ?? "")) ?? null;
+
 const MESI = ["gennaio","febbraio","marzo","aprile","maggio","giugno",
               "luglio","agosto","settembre","ottobre","novembre","dicembre"];
 const GG = ["domenica","lunedì","martedì","mercoledì","giovedì","venerdì","sabato"];
@@ -121,7 +133,8 @@ Deno.serve(async (req) => {
 
     const { data: sw } = await sb.from("swaps").select("*").eq("id", swap_id).maybeSingle();
     if (!sw) return json({ error: "NOT_FOUND" }, 404);
-    const { data: autore } = await sb.from("members").select("full_name").eq("id", sw.author_id).maybeSingle();
+    const { data: autore } = await sb.from("members")
+      .select("full_name, job").eq("id", sw.author_id).maybeSingle();
 
     const nome1 = (n?: string) => (n ?? "").split(" ")[0];
     const quando = dataLunga(sw.target_date);
@@ -132,8 +145,15 @@ Deno.serve(async (req) => {
     let titolo = "Cambio turni", corpo = "";
 
     if (evento === "aperta") {
-      const { data } = await sb.from("members").select("id").eq("active", true).neq("id", sw.author_id);
-      destinatari = (data ?? []).map((m) => m.id);
+      // Solo la famiglia di chi chiede: un cambio in Product Zone non serve
+      // svegliare il Genius Bar. La bacheca però resta di tutti, così chi
+      // può dare una mano lo fa lo stesso.
+      const famiglia = famigliaDi(autore?.job);
+      const { data } = await sb.from("members")
+        .select("id, job").eq("active", true).neq("id", sw.author_id);
+      destinatari = (data ?? [])
+        .filter((m) => !famiglia || famigliaDi(m.job) === famiglia || famigliaDi(m.job) === null)
+        .map((m) => m.id);
       titolo = `${nome1(autore?.full_name)} cerca un cambio`;
       corpo = sw.kind === "off"
         ? `${quando} · vorrebbe la giornata libera`

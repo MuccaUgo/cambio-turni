@@ -1061,6 +1061,17 @@ const ICONA = k => `<span class="i">${SVG[k] || SVG.orario}</span>`;
 const RUOLI = ["Specialist", "Expert", "Pro", "Creative", "Creative Pro",
                "Tech Specialist", "Tech Expert", "Genius"];
 
+// Le famiglie decidono a chi suona la notifica di una richiesta nuova. Questa
+// qui serve solo a scriverlo in chiaro nel Profilo: quella che comanda sta
+// nella funzione `notifica`, perché il telefono non deve poter scegliere da
+// solo chi avvisare. Se cambia una, va cambiata anche l'altra.
+const FAMIGLIE = {
+  "Product Zone": ["Specialist", "Expert", "Pro"],
+  "Genius Bar":   ["Genius", "Tech Specialist", "Tech Expert"],
+  "Creative":     ["Creative", "Creative Pro"],
+};
+const famigliaDi = ruolo => Object.keys(FAMIGLIE).find(f => FAMIGLIE[f].includes(ruolo)) || null;
+
 // Le otto combinazioni: tipo di richiesta × di chi è × a che punto sta
 function etichetta(sw) {
   if (sw.status === "risolta") return "Risolto";
@@ -1802,7 +1813,7 @@ async function disegnaProfilo() {
           ${ruoloIgnoto ? `<option value="" selected>Scegli il tuo ruolo</option>` : ""}
           ${RUOLI.map(r => `<option value="${esc(r)}" ${S.me.job === r ? "selected" : ""}>${esc(r)}</option>`).join("")}
         </select></div>
-        <div class="sub" style="margin-top:6px">Serve solo ai colleghi per capire al volo chi può coprirti.</div>
+        <div class="sub" style="margin-top:6px" id="nota-ruolo"></div>
       </div>
     </div>
     <details class="card g pieghevole">
@@ -1829,6 +1840,16 @@ async function disegnaProfilo() {
       <button class="b full bad" id="do-logout">Esci</button>
     </div>`;
 
+  const notaRuolo = ruolo => {
+    const f = famigliaDi(ruolo);
+    return f
+      ? `Sei in <b>${esc(f)}</b>: ti avviso quando qualcuno di ${esc(f)} cerca un cambio.
+         In bacheca restano comunque le richieste di tutti.`
+      : `Scegli il ruolo: serve ai colleghi per capire chi può coprirti, e a mandarti
+         le notifiche dei cambi che ti riguardano. Finché manca, le ricevi tutte.`;
+  };
+  $("#nota-ruolo").innerHTML = notaRuolo(S.me.job);
+
   if ($("#do-qr")) $("#do-qr").onclick = apriQrGrande;
   $("#do-share").onclick = condividiApp;
   $("#do-copy").onclick = copiaLink;
@@ -1838,10 +1859,12 @@ async function disegnaProfilo() {
     const prima = S.me.job, nuovo = e.target.value;
     S.me.job = nuovo;
     $("#hero-ruolo").textContent = nuovo || "senza ruolo";
+    $("#nota-ruolo").innerHTML = notaRuolo(nuovo);
     try { await api("api_set_job", { p_token: S.token, p_job: nuovo }); toast("Ruolo aggiornato"); }
     catch (err) {
       S.me.job = prima; e.target.value = prima || "";
       $("#hero-ruolo").textContent = prima || "senza ruolo";
+      $("#nota-ruolo").innerHTML = notaRuolo(prima);
       toast(messaggio(err), true);
     }
   };
