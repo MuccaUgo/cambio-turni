@@ -1530,6 +1530,12 @@ function disegnaBacheca() {
   const mie = S.board.filter(x => x.author_id === meId);
   const prese = S.board.filter(x => x.taker_id === meId);
 
+  // Prima il proprio reparto, poi tutti gli altri. Chi non ha ancora scelto il
+  // ruolo non ha un reparto: per lui l'elenco resta uno solo, come prima.
+  const mioReparto = famigliaDi(S.me.job);
+  const delMio = mioReparto ? daAiutare.filter(x => famigliaDi(x.author_job) === mioReparto) : [];
+  const altrui = mioReparto ? daAiutare.filter(x => famigliaDi(x.author_job) !== mioReparto) : daAiutare;
+
   const sezione = (titolo, lista, vuoto) =>
     `<div class="sect-title">${titolo}</div>` +
     (lista.length ? lista.map(x => schedaSwap(x)).join("") : `<div class="card g"><div class="sub">${vuoto}</div></div>`);
@@ -1542,8 +1548,13 @@ function disegnaBacheca() {
        <span class="sub">Aggiornato alle ${ora}</span>
        <button class="b sm" data-act="refresh">↻ Aggiorna</button>
      </div>` +
-    sezione(`Chi cerca un cambio${daAiutare.length ? " · " + daAiutare.length : ""}`, daAiutare,
-            "Nessuno sta cercando un cambio in questo momento.") +
+    (mioReparto
+      ? sezione(`${mioReparto}${delMio.length ? " · " + delMio.length : ""}`, delMio,
+                `Nessuno di ${mioReparto} sta cercando un cambio.`) +
+        // gli altri reparti si vedono lo stesso: se puoi coprire, copri
+        (altrui.length ? sezione(`Altri reparti · ${altrui.length}`, altrui, "") : "")
+      : sezione(`Chi cerca un cambio${daAiutare.length ? " · " + daAiutare.length : ""}`, daAiutare,
+                "Nessuno sta cercando un cambio in questo momento.")) +
     sezione("Le mie richieste", mie, "Non hai richieste aperte. Tocca un giorno sul calendario per crearne una.") +
     (prese.length ? sezione("Ci penso io", prese, "") : "");
   autoScrollStrisce();

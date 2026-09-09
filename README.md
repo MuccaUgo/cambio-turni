@@ -85,8 +85,9 @@ notifica di troppo che sparire dal giro senza accorgersene. Vale lo stesso per
 un ruolo che non sta in nessuna famiglia.
 
 **Il filtro riguarda solo le notifiche.** In bacheca le richieste restano di
-tutti: se un Genius quel giorno può coprire un turno in Product Zone, lo vede e
-lo prende lo stesso. Tutte le altre notifiche (qualcuno ha preso la tua
+tutti: in cima c'è il tuo reparto, sotto **Altri reparti** con tutto il resto.
+Se un Genius quel giorno può coprire un turno in Product Zone, lo vede e lo
+prende lo stesso — semplicemente non gli è suonato il telefono. Tutte le altre notifiche (qualcuno ha preso la tua
 richiesta, è stata risolta, torna disponibile) vanno solo ai due interessati,
 come prima.
 
