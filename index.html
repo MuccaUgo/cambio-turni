@@ -400,18 +400,41 @@
     border-radius: 12px; padding: 8px 11px; margin-bottom: 11px;
   }
 
-  /* ---------- benvenuto ---------- */
-  /* il pulsante resta appiccicato in fondo allo schermo: il testo è lungo e
-     chi non scorre fino in fondo non deve restare senza il modo di andare avanti */
-  #benve-ok { position: sticky; bottom: calc(6px + env(safe-area-inset-bottom)); margin-top: 12px; }
-  .punto { display: flex; gap: 12px; align-items: flex-start; }
-  .punto + .punto { margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--hair); }
-  .punto .ic { font-size: 1.3rem; line-height: 1.25; flex: none; width: 28px; text-align: center; }
-  .punto .testo { font-size: .855rem; line-height: 1.55; color: var(--ink2); min-width: 0; }
-  .punto .testo b { color: var(--ink); }
-  .punto .capo { display: block; font-size: .96rem; font-weight: 700; color: var(--ink); margin-bottom: 3px; }
-  .punto ul { margin: 5px 0 0 17px; }
-  .punto li { margin-bottom: 3px; }
+  /* ---------- benvenuto ----------
+     Niente scheda e niente icone: un titolo grande, poi voci separate solo
+     dallo spazio. La gerarchia la fa il testo, come nelle schermate di
+     presentazione di iOS. */
+  #benvenuto { padding-top: calc(46px + env(safe-area-inset-top)); }
+  .titolone {
+    font-size: 2.05rem; font-weight: 800; letter-spacing: -.035em; line-height: 1.13;
+    text-align: center; text-wrap: balance;
+  }
+  .sottotitolone {
+    text-align: center; color: var(--ink2); font-size: .95rem; line-height: 1.45;
+    margin: 9px 6px 30px;
+  }
+  .punto + .punto { margin-top: 21px; }
+  .punto .capo {
+    display: block; font-size: 1rem; font-weight: 700; color: var(--ink);
+    letter-spacing: -.012em; margin-bottom: 4px;
+  }
+  .punto .testo { font-size: .875rem; line-height: 1.6; color: var(--ink2); }
+  .punto .testo b { color: var(--ink); font-weight: 650; }
+  .nota-piede {
+    font-size: .8rem; line-height: 1.55; color: var(--ink2); opacity: .8;
+    margin-top: 24px; padding-top: 16px; border-top: 1px solid var(--hair);
+  }
+  /* Il pulsante resta appiccicato in fondo: il testo è lungo e chi non scorre
+     fino in fondo non deve restare senza il modo di andare avanti. Sotto ha una
+     fascia sfocata che sfuma verso l'alto, così le righe che gli passano dietro
+     non gli finiscono addosso di netto. */
+  .benve-piede {
+    position: sticky; bottom: 0; margin-top: 26px;
+    padding: 26px 0 calc(22px + env(safe-area-inset-bottom));
+    -webkit-backdrop-filter: blur(16px); backdrop-filter: blur(16px);
+    -webkit-mask-image: linear-gradient(to bottom, transparent, #000 24px);
+            mask-image: linear-gradient(to bottom, transparent, #000 24px);
+  }
 
   /* ---------- suggerimenti ---------- */
   #fb-testo { min-height: 92px; resize: vertical; line-height: 1.5; }
@@ -462,13 +485,10 @@
      un collega) prima dell'accesso si spiega cos'è, come si installa e cosa
      finisce sul server. Si rilegge quando si vuole dal Profilo. -->
 <section id="benvenuto" class="hide">
-  <div class="brand">
-    <div class="logo">🔄</div>
-    <h1>Cambio turni</h1>
-    <p>Trova un collega che ti copre, senza girare messaggi</p>
-  </div>
-  <div class="card g" id="benve-corpo"></div>
-  <button class="b pri full" id="benve-ok">Iniziamo →</button>
+  <h1 class="titolone">Benvenuto in<br>Cambio turni</h1>
+  <p class="sottotitolone">Uno strumento tra colleghi per trovare<br>chi può coprire un turno.</p>
+  <div id="benve-corpo"></div>
+  <div class="benve-piede"><button class="b pri full" id="benve-ok">Continua</button></div>
 </section>
 
 <!-- ============ ACCESSO ============ -->
@@ -1862,47 +1882,57 @@ const VISTO = "cambioturni_visto";
 // raccontino due storie diverse.
 function contenutoBenvenuto() {
   const installa = inHome()
-    ? `<b class="capo">È già sulla tua schermata Home</b>
-       Da qui si apre a tutto schermo e le notifiche possono arrivarti: non devi fare altro.`
+    ? `<b class="capo">L'app è già sulla schermata Home</b>
+       <div class="testo">Da qui si apre a tutto schermo e può inviarti le notifiche:
+       non devi fare altro.</div>`
     : iOS()
-      ? `<b class="capo">Mettila sulla schermata Home</b>
-         Tocca <b>Condividi</b> (il quadrato con la freccia in su, in fondo allo schermo)
-         e poi <b>Aggiungi a Home</b>. Non è un vezzo: su iPhone è l'unico modo
-         perché le notifiche ti arrivino davvero.`
-      : `<b class="capo">Mettila sulla schermata Home</b>
-         Apri il menu del browser (<b>⋮</b>) e scegli <b>Aggiungi a schermata Home</b>:
-         si apre a tutto schermo e può avvisarti quando succede qualcosa.`;
+      ? `<b class="capo">Aggiungila alla schermata Home</b>
+         <div class="testo">Tocca <b>Condividi</b> in fondo allo schermo, poi <b>Aggiungi a Home</b>.
+         Oltre ad aprirsi a tutto schermo, su iPhone è la condizione perché le notifiche
+         possano funzionare.</div>`
+      : `<b class="capo">Aggiungila alla schermata Home</b>
+         <div class="testo">Apri il menu del browser e scegli <b>Aggiungi a schermata Home</b>:
+         l'app si apre a tutto schermo e può inviarti le notifiche.</div>`;
 
   return `
-    <div class="punto"><div class="ic">🤝</div><div class="testo">
-      <b class="capo">Al posto del gruppo</b>
-      Chiedere un cambio in una chat da cento persone vuol dire disturbarne
-      novantanove per parlarne con uno. Qui pubblichi il giorno che ti serve,
-      lo vede chi te lo può coprire, e quando qualcuno risponde la cosa finisce lì.
-    </div></div>
+    <div class="punto">
+      <b class="capo">Come funziona</b>
+      <div class="testo">Pubblichi il giorno che ti serve e chi può coprirlo risponde,
+      senza scrivere a tutto il gruppo. <b>Non sostituisce UKG</b>: una volta trovato
+      l'accordo, il cambio va registrato lì. È un'iniziativa tra colleghi, non uno
+      strumento aziendale, e l'uso è volontario.</div>
+    </div>
 
-    <div class="punto"><div class="ic">📲</div><div class="testo">${installa}</div></div>
+    <div class="punto">${installa}</div>
 
-    <div class="punto"><div class="ic">🔒</div><div class="testo">
-      <b class="capo">Cosa finisce sul server</b>
-      <ul>
-        <li>il tuo <b>nome e cognome</b>, e il <b>ruolo</b> se lo scegli;</li>
-        <li>le <b>richieste</b> che pubblichi: giorno, orari, il commento che aggiungi;</li>
-        <li>del <b>codice a 6 cifre</b> resta solo un'impronta, da cui non si torna indietro.</li>
-      </ul>
-      Niente email, niente numero di telefono, niente posizione, nessuna pubblicità:
-      il database è nostro e non lo guarda nessun altro.
-      Il <b>calendario dei turni</b>, se lo colleghi, resta su questo telefono e non esce di qui.<br>
-      <b>Chi vede cosa:</b> la richiesta la leggono i colleghi, ma
-      <b>chi l'ha accettata lo sapete solo in due</b>.
-    </div></div>
+    <div class="punto">
+      <b class="capo">Quali dati vengono registrati</b>
+      <div class="testo">Sul server restano nome e cognome, il ruolo se lo indichi e le
+      richieste che pubblichi, con giorno, orari ed eventuali note. Del codice di accesso
+      è conservata solo un'impronta, dalla quale non è possibile risalire al codice.
+      Non vengono richiesti indirizzo email, numero di telefono o dati di posizione, e le
+      informazioni non sono usate per altri scopi né cedute a terzi. Se colleghi il
+      calendario dei turni, resta su questo telefono e non viene inviato al server.</div>
+    </div>
 
-    <div class="punto"><div class="ic">🏁</div><div class="testo">
-      <b class="capo">Il cambio vero si fa su UKG</b>
-      Qui ci si mette d'accordo e basta: niente manager, niente approvazioni.
-      Trovata l'intesa, uno dei due la registra su UKG e la richiesta si chiude.
-      Se qualcosa non torna, in <b>Profilo</b> c'è <b>Dimmi come va</b>: due righe e le leggo.
-    </div></div>`;
+    <div class="punto">
+      <b class="capo">Chi può vedere cosa</b>
+      <div class="testo">Le richieste pubblicate sono visibili ai colleghi che usano l'app.
+      Il nome di chi ne accetta una è mostrato <b>solo alle due persone coinvolte</b>, ed è
+      il database a filtrarlo, non l'interfaccia. Le tabelle non sono raggiungibili con la
+      chiave pubblica dell'app: ogni operazione passa da funzioni che verificano chi la
+      richiede. Come in qualsiasi servizio, chi amministra il database può accedere ai
+      dati che contiene.</div>
+    </div>
+
+    <div class="punto">
+      <b class="capo">Puoi farti rimuovere quando vuoi</b>
+      <div class="testo">Basta chiederlo a chi gestisce l'elenco: il profilo e le richieste
+      collegate vengono cancellati.</div>
+    </div>
+
+    <div class="nota-piede">Per segnalare un problema o proporre un'idea:
+    <b>Profilo → Dimmi come va</b>.</div>`;
 }
 
 function mostraBenvenuto() {
@@ -1923,8 +1953,8 @@ $("#benve-ok").onclick = () => {
 
 function apriBenvenuto() {
   $("#sheet-body").innerHTML = `
-    <h3>Come funziona</h3>
-    <div style="margin-top:13px">${contenutoBenvenuto()}</div>
+    <h3>Informazioni e privacy</h3>
+    <div style="margin-top:19px">${contenutoBenvenuto()}</div>
     <button class="b full" data-act="close" style="margin-top:15px">Chiudi</button>`;
   $("#scrim").classList.add("on"); $("#sheet").classList.add("on");
 }
@@ -2004,7 +2034,7 @@ async function disegnaProfilo() {
     <div id="team-box"></div>
 
     <div class="card g chiusura">
-      <button class="b full" style="margin-bottom:10px" id="do-info">Come funziona e cosa salvo</button>
+      <button class="b full" style="margin-bottom:10px" id="do-info">Informazioni e privacy</button>
       <button class="b full" id="do-reload">Ricarica l'app ↻</button>
       <div class="sub" style="text-align:center;margin:9px 0 12px">
         Serve solo se ho pubblicato una versione nuova e non la vedi.</div>
@@ -2498,7 +2528,7 @@ async function avvia() {
   if (DEMO) $("#demo-banner").classList.remove("hide");
   if (S.token) {
     // chi è già dentro non va fermato da una presentazione: la do per vista,
-    // resta nel Profilo sotto "Come funziona e cosa salvo" per chi la vuole
+    // resta nel Profilo sotto "Informazioni e privacy" per chi la vuole
     segnaVisto();
     try {
       const r = await api("api_session", { p_token: S.token });
@@ -2515,7 +2545,7 @@ async function avvia() {
 
   // Primo arrivo, di solito inquadrando il QR di un collega: prima di
   // chiedergli chi è, gli si dice dove è capitato. L'elenco intanto si
-  // carica dietro le quinte, così quando tocca "Iniziamo" è già pronto.
+  // carica dietro le quinte, così quando tocca "Continua" è già pronto.
   let visto = true;
   try { visto = !!localStorage.getItem(VISTO); } catch {}
   if (!visto) mostraBenvenuto();
