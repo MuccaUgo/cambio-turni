@@ -101,15 +101,20 @@ Profilo.
 
 Chi apre l'app per la prima volta — di solito inquadrando il codice QR di un
 collega — non si ritrova davanti a "chi sei?" senza sapere dove è capitato.
-Prima c'è una schermata che dice quattro cose: che è un modo di chiedere un
-cambio **al posto del gruppo**, come si **mette sulla schermata Home**
-(su iPhone *Condividi → Aggiungi a Home*, l'unico modo perché arrivino le
-notifiche), **cosa finisce sul server** e cosa no, e che il cambio vero si fa
-sempre su UKG.
+Prima c'è una schermata che dice cinque cose: **come funziona** (e che non
+sostituisce UKG, che è un'iniziativa tra colleghi e non uno strumento
+aziendale, e che l'uso è volontario), come si **aggiunge alla schermata Home**,
+**quali dati vengono registrati**, **chi può vedere cosa** e che **si può
+chiedere di essere rimossi** quando si vuole.
+
+Il testo è volutamente asciutto e senza icone, e dice anche le cose scomode:
+che chi amministra il database può accedere ai dati che contiene, e che del
+codice resta solo un'impronta. Meglio scriverlo prima che sentirselo chiedere
+dopo.
 
 Si vede una volta sola: il "già visto" sta in `localStorage`, quindi cambiando
 telefono si rivede, e chi era già dentro prima non se la trova davanti.
-Si rilegge quando si vuole da **Profilo → Come funziona e cosa salvo**.
+Si rilegge quando si vuole da **Profilo → Informazioni e privacy**.
 
 Il testo sta in un posto solo (`contenutoBenvenuto()`), usato sia dalla
 schermata iniziale sia dal pannello: due copie finirebbero per raccontare
